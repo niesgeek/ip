@@ -119,6 +119,17 @@ curl -sL https://你的域名/json?pretty
 
 Windows PowerShell 里的 `curl` 常常是 `Invoke-WebRequest` 的别名。请改用 `curl.exe -L https://你的域名`。
 
+## 界面
+
+页面是米黄纸底、粗黑描边、硬偏移阴影的 12 列便当格。右侧紫色卡片是「你的网络体检」，地图用 112×87 的陆地点阵，风险分用四档色块。字体是 Space Grotesk 和 JetBrains Mono，国旗图来自 flag-icons，这两处是样式资源，不是统计脚本。
+
+和公开参考站仍有的差别：
+
+- 站名是 IP Lookup，不用对方的域名，也不用 F.S. 这套品牌词
+- 没有英文版、联系页和 OpenAPI 文档页
+- 没有访问统计信标
+- 风险分的四档和配色对齐，具体加分仍是本仓库自己的关键词和少量 ASN，不会逐条复刻别人的内部规则
+
 ## 本地预览
 
 需要 Node.js 20 或更新版本。
