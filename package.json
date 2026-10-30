@@ -1,0 +1,15 @@
+{
+  "name": "ip-lookup",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "wrangler pages dev",
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "wrangler": "^4.156.0"
+  }
+}

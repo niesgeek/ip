@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>IP Lookup · IP 与域名查询</title>
+  <meta name="description" content="查询 IP 或域名的位置、运营商与线路特征。自己的地址由边缘节点从连接中读取，其他地址依次询问公开地理接口。无账号、无追踪脚本。">
+  <meta name="theme-color" content="#0b6e4f">
+  <meta name="referrer" content="no-referrer">
+  <meta name="color-scheme" content="light dark">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/assets/app.css">
+</head>
+<body>
+  <header class="top wrap">
+    <a class="brand" href="/">
+      <span class="mark" aria-hidden="true">IP</span>
+      <span>
+        <strong>IP Lookup</strong>
+        <small>归属地与线路</small>
+      </span>
+    </a>
+    <nav class="nav" aria-label="页内">
+      <a href="#self-card">我的网络</a>
+      <a href="#dns-card">DNS</a>
+      <a href="#batch-card">批量</a>
+      <a href="#cidr-card">CIDR</a>
+      <a href="#curl-card">curl</a>
+    </nav>
+  </header>
+
+  <main class="wrap">
+    <section class="hero">
+      <h1>查一个地址的位置和线路</h1>
+      <p class="lede">输入 IP 或域名。你自己的地址优先由边缘节点从这条连接里读出；查别人的地址时，浏览器按顺序询问公开地理接口，失败或限流就换下一个，并写明来源。</p>
+      <form id="search-form" class="search" role="search">
+        <label class="visually-hidden" for="q">IP 或域名</label>
+        <input id="q" name="q" placeholder="1.1.1.1 或 example.com" autocomplete="off" autocapitalize="off" spellcheck="false">
+        <button type="submit">查询</button>
+      </form>
+      <div class="examples">
+        <button type="button" data-q="1.1.1.1">1.1.1.1</button>
+        <button type="button" data-q="8.8.8.8">8.8.8.8</button>
+        <button type="button" data-q="2001:4860:4860::8888">2001:4860:4860::8888</button>
+        <button type="button" data-q="cloudflare.com">cloudflare.com</button>
+        <button type="button" data-q="example.com">example.com</button>
+      </div>
+    </section>
+
+    <div class="layout">
+      <article class="card" id="self-card">
+        <header class="card-head">
+          <div>
+            <h2>我的网络体检</h2>
+            <p>这些字段优先来自离你最近的边缘节点。</p>
+          </div>
+          <p class="source" id="self-source">读取中</p>
+        </header>
+        <div id="self-body">
+          <p class="muted">正在从边缘节点读取你的连接…</p>
+        </div>
+      </article>
+
+      <article class="card" id="result-card">
+        <header class="card-head">
+          <div>
+            <h2>查询结果</h2>
+            <p>IP 直接查归属地。域名先做 DNS，再查选中的地址。</p>
+          </div>
+        </header>
+        <div id="result-body">
+          <p class="muted">还没有查询目标。输入一个 IP 或域名，或点上面的示例。</p>
+        </div>
+      </article>
+    </div>
+
+    <section class="card" id="risk-card" aria-live="polite">
+      <div class="row-between">
+        <h2>风险信号</h2>
+        <p class="pill" id="risk-subject">当前对象：还没有</p>
+      </div>
+      <p class="risk-score" id="risk-score">—</p>
+      <p id="risk-label">等待查询</p>
+      <meter id="risk-meter" min="0" max="100" value="0" aria-label="风险分"></meter>
+      <ol class="tiers" id="tiers">
+        <li data-tier="home"><b>0–19</b><span>住宅 / 企业宽带</span></li>
+        <li data-tier="transit"><b>20–39</b><span>机房或骨干出口</span></li>
+        <li data-tier="cloud"><b>40–69</b><span>云主机 / 托管</span></li>
+        <li data-tier="proxy"><b>70–100</b><span>代理 / VPN 高概率</span></li>
+      </ol>
+      <p class="muted" id="risk-reasons">查询后根据运营商名称，以及名称缺失时的少量常见 ASN，在本地打一个 0 到 100 的分。这不是威胁情报，也不能说明这个地址在做坏事。</p>
+    </section>
+
+    <section class="card" id="dns-card">
+      <h2>域名记录与邮件体检</h2>
+      <p class="sub">浏览器直接向多家 DNS-over-HTTPS 查询 A、AAAA、MX、TXT、NS、CAA，以及 <code>_dmarc</code>。TXT 取最完整的一份。SPF 和 DMARC 只在这里做简要判断。</p>
+      <div id="dns-body">
+        <p class="muted">查询域名后，这里会列出记录，并给出邮件配置的简要结论。只查 IP 时，这里显示反向解析。</p>
+      </div>
+    </section>
+
+    <section class="card" id="batch-card">
+      <div class="row-between">
+        <h2>批量查询</h2>
+        <p class="pill" id="batch-count">0 / 20</p>
+      </div>
+      <p class="sub">一行一个，也可以用逗号或空格分隔，最多 20 个。域名会先解析再查归属地。两路同时进行，避免把公开接口打满。</p>
+      <form id="batch-form" class="stack">
+        <label class="visually-hidden" for="batch-input">批量 IP 或域名</label>
+        <textarea id="batch-input" placeholder="1.1.1.1&#10;8.8.8.8&#10;example.com"></textarea>
+        <div class="actions">
+          <button class="primary" id="batch-button" type="submit">开始批量查询</button>
+          <button class="ghost" id="batch-csv" type="button" disabled>导出 CSV</button>
+        </div>
+      </form>
+      <p class="muted" id="batch-note"></p>
+      <div class="table-wrap" id="batch-table-wrap" hidden>
+        <table>
+          <thead>
+            <tr>
+              <th>目标</th>
+              <th>IP</th>
+              <th>位置</th>
+              <th>ASN / 运营商</th>
+              <th>性质</th>
+              <th>来源</th>
+              <th>状态</th>
+            </tr>
+          </thead>
+          <tbody id="batch-tbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card" id="cidr-card">
+      <h2>子网 / CIDR 计算器</h2>
+      <p class="sub">在浏览器里计算网络地址、广播地址、掩码、可用范围和地址数量。不写前缀时按单主机（/32 或 /128）。IPv6 的大地址总数用 2 的幂表示。</p>
+      <form id="cidr-form" class="stack">
+        <label class="visually-hidden" for="cidr-input">CIDR</label>
+        <input id="cidr-input" placeholder="192.168.1.0/24 或 2001:db8::/48" autocomplete="off" spellcheck="false">
+        <div class="actions">
+          <button class="primary" type="submit">计算</button>
+        </div>
+      </form>
+      <div class="examples">
+        <button type="button" data-cidr="192.168.1.0/24">192.168.1.0/24</button>
+        <button type="button" data-cidr="10.0.0.0/8">10.0.0.0/8</button>
+        <button type="button" data-cidr="172.16.0.0/12">172.16.0.0/12</button>
+        <button type="button" data-cidr="203.0.113.42/26">203.0.113.42/26</button>
+        <button type="button" data-cidr="203.0.113.42/31">203.0.113.42/31</button>
+        <button type="button" data-cidr="2001:db8::/48">2001:db8::/48</button>
+      </div>
+      <div id="cidr-body"><p class="muted">输入网段后，结果会出现在这里。</p></div>
+    </section>
+
+    <section class="card" id="history-card">
+      <div class="row-between">
+        <h2>最近查询</h2>
+        <button class="ghost" id="clear-history" type="button">清除</button>
+      </div>
+      <p class="sub">只存在这台浏览器的 localStorage 里，服务器不保存。</p>
+      <ul class="history-list" id="history-list"></ul>
+    </section>
+
+    <section class="card" id="curl-card">
+      <h2>终端用法</h2>
+      <p class="sub">不需要密钥。curl、wget、HTTPie 访问根路径得到一行 IP；浏览器访问同一地址得到这个页面。<code>/json</code> 和 <code>/api/whoami</code> 的字段相同。</p>
+      <pre class="term"><code># 一行 IP。-L 用来跟上跳到 HTTPS 的重定向
+curl -L https://<span data-host>你的域名</span>
+
+# 完整字段。pretty 只影响换行
+curl -sL https://<span data-host>你的域名</span>/json?pretty
+
+wget -qO- https://<span data-host>你的域名</span></code></pre>
+      <p class="sub">Windows PowerShell 里的 curl 往往是 Invoke-WebRequest 的别名。请改用 <code>curl.exe -L https://&lt;域名&gt;</code>。</p>
+    </section>
+
+    <section class="card" id="notes">
+      <h2>数据与限制</h2>
+      <ul>
+        <li>边缘接口读的是 Cloudflare 看到的连接：客户端 IP、<code>request.cf</code> 里的国家、城市、经纬度、ASN、机房和 TLS。没有单独的 ISP 字段，所以这时 <code>isp</code> 为空，<code>org</code> 来自 <code>asOrganization</code>。</li>
+        <li>查任意 IP 时依次请求 ipwho.is、api.ip.sb、geojs.io、ipapi.co。城市是近似值，机房和移动出口更容易偏。</li>
+        <li>域名解析不经过本站。某家解析少给几条 TXT 时，页面会改用更完整的那一份。</li>
+        <li>没有数据库，没有 API key，页面里也没有第三方统计脚本。</li>
+      </ul>
+      <details>
+        <summary>为什么城市和我实际所在地不一样？</summary>
+        <p>查到的是出口地址的登记位置。城域网集中出口、代理、VPN、云主机和运营商级 NAT 都会让城市偏离你本人。任何 IP 查询都看不到设备的物理位置。</p>
+      </details>
+      <details>
+        <summary>这个站会记下我查过什么吗？</summary>
+        <p>服务端不落库。最近查询存在你自己的浏览器里，可以在上面一键清除。</p>
+      </details>
+      <details>
+        <summary>风险分是怎么来的？</summary>
+        <p>本地关键词：云厂商、托管、代理或 VPN 会加分，住宅和移动网络保持低分。名称缺失时，只用一小份常见 ASN 对照。四档分别是 0–19、20–39、40–69、70–100。</p>
+      </details>
+    </section>
+  </main>
+
+  <footer class="wrap">IP Lookup · 不保存查询 · 无追踪脚本</footer>
+
+  <template id="map-template">
+    <div class="map-wrap">
+      <svg class="map" viewBox="0 0 360 180" role="img" aria-label="经纬度示意">
+        <rect class="map-ocean" x="1" y="1" width="358" height="178" rx="12"></rect>
+        <path class="map-grid" d="M0 90H360M180 0V180M90 0V180M270 0V180"></path>
+        <circle class="map-self" data-dot="self" r="5" cx="-20" cy="-20"></circle>
+        <circle class="map-target" data-dot="target" r="6" cx="-20" cy="-20"></circle>
+      </svg>
+      <p class="map-legend"><span class="swatch self"></span>你的出口<span class="swatch target"></span>查询目标</p>
+      <p class="muted" data-caption></p>
+    </div>
+  </template>
+
+  <script type="module" src="/assets/app.js"></script>
+</body>
+</html>
