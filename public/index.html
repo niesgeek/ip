@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>IP 归属地查询 · 我的 IP 检测 · curl 接口 | IP Lookup</title>
+<meta name="description" content="输入 IP 即刻查到国家、城市、运营商与 ASN，点阵地图标出落点，并给出机房与代理风险信号。支持 IPv4、IPv6 与最多 20 个地址的批量查询；免注册、无广告、服务端不落库，也能 curl 本站直接取 JSON。">
+<meta name="robots" content="index,follow">
+<meta name="theme-color" content="#F5EFE1">
+<meta name="referrer" content="no-referrer">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="/assets/app.css">
+</head>
+<body>
+<svg width="0" height="0" aria-hidden="true" style="position:absolute">
+  <defs>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2.6"/><path d="M15.6 15.6 21 21" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></symbol>
+    <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M3 12h18M12 3c2.6 2.6 2.6 15.4 0 18M12 3c-2.6 2.6-2.6 15.4 0 18" fill="none" stroke="currentColor" stroke-width="2.2"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3 5 5.6v5.2c0 4.6 2.9 8 7 10.2 4.1-2.2 7-5.6 7-10.2V5.6L12 3Z" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/><path d="M9 12.2l2.2 2.2L15.4 10" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-layers" viewBox="0 0 24 24"><path d="M12 3 3 7.5 12 12l9-4.5L12 3Z" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/><path d="M3 12.5 12 17l9-4.5M3 17 12 21.5 21 17" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/></symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21c5-5.4 7.5-8.6 7.5-11.5A7.5 7.5 0 0 0 4.5 9.5C4.5 12.4 7 15.6 12 21Z" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/><circle cx="12" cy="9.4" r="2.6" fill="none" stroke="currentColor" stroke-width="2.4"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M12 7v5.4l3.6 2.2" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2.5" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M15.5 5.5A2.5 2.5 0 0 0 13 3H6.5A2.5 2.5 0 0 0 4 5.5V13a2.5 2.5 0 0 0 2.5 2.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></symbol>
+    <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13.5 2 5 13.2h5.2L9.8 22 19 10.4h-5.4L13.5 2Z" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M12 11v6M12 7.4v.2" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 4v13M6 12.5 12 18.5l6-6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-mail" viewBox="0 0 24 24"><rect x="3" y="5.5" width="18" height="13" rx="2.5" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="m4 8 7.1 4.9c.55.38 1.25.38 1.8 0L20 8" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="2.4"/><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M12 1v3.5M12 19.5V23M1 12h3.5M19.5 12H23" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></symbol>
+    <symbol id="i-terminal" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2.5" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M7.5 9.5 10.5 12l-3 2.5M12.5 15h4" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  </defs>
+</svg>
+
+<header class="bar">
+  <a class="brand" href="/" aria-label="IP Lookup 首页">
+    <span class="brand-mark"><svg width="20" height="20"><use href="#i-globe"/></svg></span>
+    <span class="brand-txt">IP<em>.</em>Lookup</span>
+  </a>
+  <nav class="bar-nav" aria-label="页面导航">
+    <a href="#hero">查询</a>
+    <a href="#mapcard">地图</a>
+    <a href="#risk">风险</a>
+    <a href="#batch">批量</a>
+    <a href="#cidr">网段</a>
+    <a href="#dev">终端</a>
+    <a href="#faq">常见问题</a>
+    <a href="#data">说明</a>
+  </nav>
+  <button class="bar-me" id="barMe" type="button" title="你的公网 IP，点击复制">
+    <span class="dot dot-lime"></span><span class="bar-me-ip" id="barMeIp">检测中…</span>
+  </button>
+</header>
+
+<main class="wrap">
+  <section class="cell cell-hero" id="hero">
+    <p class="eyebrow"><span class="sq sq-violet"></span>IP Lookup · 免注册 · 无广告</p>
+    <h1 class="h1">查一个 IP，<br><mark class="hl hl-pink">位置</mark>、<mark class="hl hl-sky">线路</mark>、<mark class="hl hl-lime">风险信号</mark><br>一次摊开。</h1>
+    <p class="tagline"><span class="tl-key">IP</span> Lookup<span class="tl-sep">·</span><em>位置、线路、风险，一次摊开。</em></p>
+    <p class="lede">IP 或网站域名都能查，IPv4 / IPv6 都支持。没有广告、没有追踪脚本、没有注册墙；不想开浏览器也行——<span class="mono">curl -L <span class="site-host">本站</span></span> 直接回你的 IP，加 <span class="mono">/json</span> 回整份情报。</p>
+    <form class="search" id="qForm" autocomplete="off">
+      <span class="search-ico"><svg width="22" height="22"><use href="#i-search"/></svg></span>
+      <input id="qInput" name="q" type="text" inputmode="text" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" readonly aria-label="要查询的 IP 地址或网站域名" placeholder="输入 IP 或网站域名，例如 8.8.8.8 / example.com">
+      <button type="button" class="btn btn-ghost" id="meBtn">定位我</button>
+      <button type="submit" class="btn btn-primary" id="goBtn">查询</button>
+    </form>
+    <p class="qerr" id="qErr" role="alert" hidden></p>
+    <div class="chips" id="chips">
+      <span class="chips-label">试试：</span>
+      <button class="chip" type="button" data-q="8.8.8.8">8.8.8.8 <i>公共 DNS</i></button>
+      <button class="chip" type="button" data-q="1.1.1.1">1.1.1.1 <i>公共 DNS</i></button>
+      <button class="chip" type="button" data-q="151.101.69.69">151.101.69.69 <i>云机房</i></button>
+      <button class="chip" type="button" data-q="2001:4860:4860::8888">v6 <i>IPv6 示例</i></button>
+      <button class="chip" type="button" data-q="example.com">example.com <i>域名</i></button>
+    </div>
+    <p class="status" id="status" aria-live="polite"><span class="dot dot-grey"></span>等待输入。你的网络信息已在右侧自动读出。</p>
+  </section>
+
+  <section class="cell cell-myip" id="myip">
+    <div class="cell-head">
+      <h2 class="h2"><svg width="18" height="18"><use href="#i-bolt"/></svg>你的网络体检</h2>
+      <span class="badge" id="myipSrc">读取中</span>
+    </div>
+    <button class="ipbig" id="myIp" type="button" title="点击复制">
+      <span class="ipbig-txt" id="myIpTxt">— — —</span>
+      <span class="ipbig-flag" id="myIpFlag"></span>
+    </button>
+    <p class="ipbig-sub" id="myIpSub">正在识别你的公网地址…</p>
+    <dl class="kv kv-2" id="myKv">
+      <div class="kv-row"><dt>国家 / 城市</dt><dd class="sk">…</dd></div>
+      <div class="kv-row"><dt>运营商</dt><dd class="sk">…</dd></div>
+      <div class="kv-row"><dt>ASN</dt><dd class="sk">…</dd></div>
+      <div class="kv-row"><dt>协议版本</dt><dd class="sk">…</dd></div>
+      <div class="kv-row"><dt>连接 / TLS</dt><dd class="sk">…</dd></div>
+      <div class="kv-row"><dt>接入节点</dt><dd class="sk">…</dd></div>
+    </dl>
+    <p class="geo-warn" id="myGeoWarn" hidden></p>
+    <button class="btn btn-sum btn-sm" id="mySum" type="button" hidden>复制体检摘要</button>
+    <p class="fine">以上字段优先由离你最近的边缘节点直接从连接里读出，不经过任何第三方接口；没有边缘函数时会自动回退，并在右上角标注当前来源。</p>
+  </section>
+
+  <section class="cell cell-detail" id="detail">
+    <div class="cell-head">
+      <h2 class="h2"><svg width="18" height="18"><use href="#i-info" id="dIcon"/></svg><span id="dTitle">查询结果</span></h2>
+      <div class="cell-tools">
+        <button class="mini" id="copyRes" type="button" hidden><svg width="14" height="14"><use href="#i-copy"/></svg>复制</button>
+        <button class="mini" id="shareRes" type="button" hidden><svg width="14" height="14"><use href="#i-layers"/></svg>分享链接</button>
+      </div>
+    </div>
+    <div class="empty" id="detailEmpty">
+      <svg viewBox="0 0 120 120" class="empty-art" aria-hidden="true">
+        <circle cx="60" cy="60" r="46" fill="none" stroke="var(--ink)" stroke-width="3" stroke-dasharray="7 9" opacity=".45"/>
+        <circle cx="60" cy="60" r="27" fill="none" stroke="var(--violet)" stroke-width="4"/>
+        <path d="M60 6v22M60 92v22M6 60h22M92 60h22" stroke="var(--ink)" stroke-width="4" stroke-linecap="round"/>
+        <circle cx="60" cy="60" r="7" fill="var(--pink)" stroke="var(--ink)" stroke-width="3"/>
+      </svg>
+      <p>还没有查询目标。<br>输入一个 IP 或网站域名，或点上方任意一个示例。</p>
+    </div>
+    <div id="detailBody" hidden>
+      <div class="res-top">
+        <span class="res-flag" id="rFlag"></span>
+        <div class="res-id">
+          <p class="res-ip mono" id="rIp">—</p>
+          <p class="res-country" id="rCountry">—</p>
+          <p class="res-path" id="rPath">—</p>
+        </div>
+        <span class="res-type" id="rType">—</span>
+      </div>
+      <div class="dnsbox" id="dnsbox" hidden>
+        <div class="dns-head">
+          <span class="dns-name mono" id="dnsName">—</span>
+          <span class="dns-meta" id="dnsMeta">—</span>
+        </div>
+        <p class="dns-cname" id="dnsCname" hidden></p>
+        <div class="dns-ips" id="dnsIps"></div>
+        <p class="fine">域名到 IP 由浏览器直连 DNS-over-HTTPS 查询（多个服务同时问，取更完整的一份），归属地分析针对上面选中的那个地址。MX / TXT / NS / CAA 与邮件配置体检在旁边那一格。</p>
+      </div>
+      <dl class="kv" id="rKv"></dl>
+      <div class="res-dist" id="rDist" hidden></div>
+      <div class="alt" id="alt" hidden>
+        <p class="alt-title">等价写法<span class="fine">本地换算，不额外请求接口</span></p>
+        <dl class="kv" id="altKv"></dl>
+      </div>
+    </div>
+  </section>
+
+  <section class="cell cell-map" id="mapcard">
+    <div class="cell-head">
+      <h2 class="h2"><svg width="18" height="18"><use href="#i-pin"/></svg>地理落点</h2>
+      <div class="cell-tools">
+        <button class="mini" id="mapMe" type="button">看我</button>
+        <button class="mini" id="mapReset" type="button">复位</button>
+      </div>
+    </div>
+    <div class="map-shell">
+      <canvas id="map" width="1200" height="466" role="img" aria-label="点阵世界地图与查询目标位置标记"></canvas>
+      <div class="map-read mono" id="mapRead">移动指针读取经纬度</div>
+      <div class="map-tag" id="mapTag" hidden></div>
+      <div class="map-legend"><span class="lg lg-me"></span>你的位置<span class="lg lg-tgt"></span>查询目标</div>
+    </div>
+    <div class="duo" id="duo" hidden>
+      <div class="duo-row"><span class="duo-k">你</span><span class="duo-v" id="duoMe">—</span><span class="duo-t mono" id="duoMeT">--:--</span></div>
+      <div class="duo-row"><span class="duo-k">目标</span><span class="duo-v" id="duoTgt">—</span><span class="duo-t mono" id="duoTgtT">--:--</span></div>
+      <div class="duo-stats">
+        <div class="duo-stat"><b class="mono" id="duoDist">—</b><span>直线距离</span></div>
+        <div class="duo-stat"><b class="mono" id="duoTz">—</b><span>时差</span></div>
+        <div class="duo-stat"><b class="mono" id="duoHemi">—</b><span>目标半球</span></div>
+      </div>
+    </div>
+    <p class="fine">底图由开放国界数据在本地栅格化成 112×87 点阵，标记按等距矩形投影落点；城市级精度取决于地理数据本身，可能有几十公里误差。</p>
+  </section>
+
+  <section class="cell cell-dnsrec" id="dnsrec">
+    <div class="cell-head">
+      <h2 class="h2"><svg width="18" height="18"><use href="#i-mail"/></svg>域名记录与邮件配置</h2>
+      <span class="badge badge-grey mono" id="dnsRecName">待查询</span>
+    </div>
+    <p class="lede lede-sm">除了 A / AAAA，一个域名还有 MX、TXT、NS、CAA。这里把它们摊开，并顺手体检 SPF 与 DMARC：<b>别人能不能冒用这个域名给你发信</b>，看这几行就够了。</p>
+    <p class="dnsrec-empty" id="dnsRecEmpty">还没查域名。在上面输入 <span class="mono">example.com</span> 这类地址，这里会列出它的全部记录类型，并给出邮件配置的体检结论。</p>
+    <dl class="rec-list" id="dnsRec" hidden></dl>
+    <div class="mailchk" id="mailChk" hidden></div>
+    <p class="fine">记录由浏览器直连 DNS-over-HTTPS 取得。TXT 会同时问几家解析服务、取最完整的那份——有的服务会悄悄少给几条，只信一家容易把「上游漏了」读成「你没配 SPF」。</p>
+  </section>
+
+  <section class="cell cell-risk" id="risk">
+    <div class="cell-head"><h2 class="h2"><svg width="18" height="18"><use href="#i-shield"/></svg>风险信号</h2></div>
+    <div class="empty" id="riskEmpty">
+      <svg viewBox="0 0 120 120" class="empty-art" aria-hidden="true">
+        <path d="M60 10 22 24v30c0 24 15 40 38 52 23-12 38-28 38-52V24L60 10Z" fill="none" stroke="var(--ink)" stroke-width="3" stroke-dasharray="6 8" opacity=".5"/>
+        <path d="M60 26 36 35v19c0 15 9 25 24 33 15-8 24-18 24-33V35L60 26Z" fill="var(--sky)" stroke="var(--ink)" stroke-width="3"/>
+      </svg>
+      <p>查询后这里会给出线路性质判定。</p>
+    </div>
+    <div id="riskBody" hidden>
+      <div class="score">
+        <div class="score-num mono" id="scoreNum">0</div>
+        <div class="score-side">
+          <p class="score-label" id="scoreLabel">—</p>
+          <div class="score-bar"><i id="scoreFill"></i></div>
+          <p class="fine">0 住宅宽带 · 100 高度可疑</p>
+        </div>
+      </div>
+      <ul class="signals" id="signals"></ul>
+      <ul class="bands" id="bands">
+        <li data-b="0"><i style="background:var(--lime)"></i>0–19 住宅 / 企业宽带</li>
+        <li data-b="1"><i style="background:var(--sky)"></i>20–39 机房或骨干出口</li>
+        <li data-b="2"><i style="background:var(--amber)"></i>40–69 云主机 / 托管</li>
+        <li data-b="3"><i style="background:var(--coral)"></i>70–100 代理 / VPN 高概率</li>
+      </ul>
+      <p class="fine">判定基于 ASN 归属与运营商关键词的启发式规则，<strong>不是</strong>实时威胁情报，也不能证明某个地址在做坏事。</p>
+    </div>
+  </section>
+
+  <section class="cell cell-batch" id="batch">
+    <div class="cell-head">
+      <h2 class="h2"><svg width="18" height="18"><use href="#i-layers"/></svg>批量查询</h2>
+      <span class="badge badge-grey" id="batchCount">0 / 20</span>
+    </div>
+    <p class="lede lede-sm">一次粘贴多个 IP 或网站域名（换行、逗号或空格分隔均可），最多 20 个。域名会先解析再查归属地；公开接口有速率限制，超出会被要求稍后再试。</p>
+    <textarea id="batchInput" class="ta mono" spellcheck="false" autocomplete="off" placeholder="8.8.8.8&#10;1.1.1.1&#10;example.com"></textarea>
+    <div class="row-btns">
+      <button class="btn btn-primary btn-sm" id="batchGo" type="button">解析并查询</button>
+      <button class="btn btn-ghost btn-sm" id="batchCsv" type="button" disabled><svg width="14" height="14"><use href="#i-down"/></svg>导出 CSV</button>
+      <button class="btn btn-ghost btn-sm" id="batchClear" type="button">清空</button>
+    </div>
+    <div class="prog" id="batchProg" hidden><i id="batchProgFill"></i></div>
+    <div class="tbl-wrap">
+      <table class="tbl" id="batchTbl">
+        <thead><tr><th>IP</th><th>位置</th><th>ASN / 运营商</th><th>性质</th><th>状态</th></tr></thead>
+        <tbody id="batchBody"></tbody>
+      </table>
+      <p class="fine" id="batchHint">结果表会在第一次批量查询后出现。</p>
+    </div>
+  </section>
+
+  <section class="cell cell-clock" id="clock">
+    <div class="cell-head"><h2 class="h2"><svg width="18" height="18"><use href="#i-clock"/></svg>时区对照</h2></div>
+    <div class="clocks">
+      <div class="clock"><span class="clock-k">你所在</span><span class="clock-v mono" id="ckMe">--:--:--</span><span class="clock-n" id="ckMeZone">—</span></div>
+      <div class="clock"><span class="clock-k">目标</span><span class="clock-v mono" id="ckTgt">--:--:--</span><span class="clock-n" id="ckTgtZone">查询后显示</span></div>
+      <div class="clock"><span class="clock-k">UTC</span><span class="clock-v mono" id="ckUtc">--:--:--</span><span class="clock-n">协调世界时</span></div>
+      <div class="clock"><span class="clock-k">目标日</span><span class="clock-v mono" id="ckTgtDay">----/--/--</span><span class="clock-n" id="ckTgtDayN">查询后显示</span></div>
+    </div>
+    <p class="fine">时差按 IANA 时区名换算；跨夏令时边界的日子，偏移可能与当地实际钟点差一小时。</p>
+  </section>
+
+  <section class="cell cell-facts" id="facts">
+    <div class="cell-head"><h2 class="h2"><svg width="18" height="18"><use href="#i-target"/></svg>本次会话</h2></div>
+    <div class="stats">
+      <div class="stat"><b class="mono" id="stQuery">0</b><span>次查询</span></div>
+      <div class="stat"><b class="mono" id="stIps">0</b><span>个 IP 解析</span></div>
+      <div class="stat"><b class="mono" id="stV6">0</b><span>IPv6 命中</span></div>
+      <div class="stat"><b class="mono" id="stMs">—</b><span>平均耗时 ms</span></div>
+    </div>
+    <p class="hist-label">最近查询（只存在你这台设备的浏览器里）</p>
+    <div class="hist" id="hist"><span class="hist-none">还没有记录</span></div>
+    <div class="srcdist" id="srcDist" hidden></div>
+  </section>
+
+  <section class="cell cell-cidr" id="cidr">
+    <div class="cell-head">
+      <h2 class="h2"><svg width="18" height="18"><use href="#i-layers"/></svg>子网 / CIDR 计算器</h2>
+      <span class="badge badge-lime">本地运算</span>
+    </div>
+    <p class="lede lede-sm">输入一个网段，立刻给出网络地址、广播地址、子网掩码、可用主机范围与地址总数。IPv4 与 IPv6 都支持，全部在浏览器里算，不发任何请求。</p>
+    <div class="cidr-bar">
+      <input id="cidrInput" class="cidr-in mono" type="text" spellcheck="false" autocomplete="off" autocapitalize="off" aria-label="要计算的网段" placeholder="10.0.0.0/22 或 2001:db8::/48" value="10.0.0.0/22">
+      <button class="btn btn-primary btn-sm" id="cidrGo" type="button">计算</button>
+    </div>
+    <div class="chips cidr-chips">
+      <button class="chip cidr-chip" data-c="192.168.1.0/24" type="button">192.168.1.0/24</button>
+      <button class="chip cidr-chip" data-c="10.0.0.0/8" type="button">10.0.0.0/8</button>
+      <button class="chip cidr-chip" data-c="172.16.0.0/12" type="button">172.16.0.0/12</button>
+      <button class="chip cidr-chip" data-c="203.0.113.42/26" type="button">203.0.113.42/26</button>
+      <button class="chip cidr-chip" data-c="2001:db8::/48" type="button">2001:db8::/48</button>
+    </div>
+    <dl class="kv" id="cidrOut"></dl>
+    <p class="qerr" id="cidrNote" hidden></p>
+    <p class="fine">不写前缀长度时按单个主机（/32、/128）处理。/31 与 /32 按 RFC 3021 与实际的点对点、单主机用法计算；IPv6 的地址总数用 2 的幂表示，不展开成二十几位数字。</p>
+  </section>
+
+  <section class="cell cell-priv" id="privacy">
+    <div class="cell-head">
+      <h2 class="h2"><svg width="18" height="18"><use href="#i-shield"/></svg>浏览器暴露自查</h2>
+      <span class="badge badge-grey">按需运行</span>
+    </div>
+    <p class="lede lede-sm">挂 VPN 的人最该看这一格：WebRTC 有时会绕过代理，直接把你真实的出口地址交出去；现代浏览器的 mDNS 混淆则会把内网地址换成随机主机名。下面的探测<b>只有你点了才会跑</b>。</p>
+    <dl class="kv" id="privKv"></dl>
+    <button class="btn btn-ghost btn-sm" id="privGo" type="button">开始检测</button>
+    <ul class="notes notes-tight">
+      <li><b>只有 .local 主机名</b>：mDNS 混淆生效，这是现代浏览器该有的样子，不是泄露。</li>
+      <li><b>漏出内网地址</b>：别人能看到你的局域网网段，足够推测你在公司还是在家。</li>
+      <li><b>公网地址与当前出口不一致</b>：代理没兜住真实出口，这一种最该处理。</li>
+    </ul>
+    <p class="fine">探测用的 STUN 节点是 Cloudflare 的公开服务，只用来拿到你这一侧的公网反射地址；结果留在页面上，不回传本站、不写日志。</p>
+  </section>
+
+  <section class="cell cell-dev" id="dev">
+    <div class="cell-head">
+      <h2 class="h2"><svg width="18" height="18"><use href="#i-terminal"/></svg>终端接口</h2>
+      <span class="badge badge-lime">无需密钥</span>
+    </div>
+    <p class="lede lede-sm">这个站本身就是接口。没有 API key、没有注册、没有速率墙，把结果直接接进管道。</p>
+    <div class="term">
+      <div class="term-bar">
+        <span class="term-dot"></span><span class="term-dot"></span><span class="term-dot"></span>
+        <span class="term-title">bash — <span class="site-host">本站</span></span>
+      </div>
+      <pre class="term-body"><code><span class="t-c"># 只要一个 IP，一行就够（-L 用来跟过强制 HTTPS 的 301）</span>
+<span class="t-p">$</span> curl -L <span class="site-host">本站</span>
+<span class="t-o">203.0.113.42</span>
+
+<span class="t-c"># 完整情报：地理、ASN、TLS、边缘节点</span>
+<span class="t-p">$</span> curl -sL <span class="site-host">本站</span>/json?pretty | jq <span class="t-f">'{ip,country,asn,org}'</span>
+<span class="t-o">{</span>
+<span class="t-o">  "ip": "203.0.113.42",</span>
+<span class="t-o">  "country": "CN",</span>
+<span class="t-o">  "asn": 4134,</span>
+<span class="t-o">  "org": "Chinanet"</span>
+<span class="t-o">}</span>
+
+<span class="t-c"># 不想用 curl 也行</span>
+<span class="t-p">$</span> wget -qO- <span class="site-host">本站</span></code></pre>
+    </div>
+    <ul class="notes notes-tight">
+      <li><b>纯文本优先</b>：用 curl / wget / httpie 访问根路径，返回的就是一行 IP，不夹 HTML。浏览器访问照常拿到完整界面，两边互不打扰。</li>
+      <li><b>Windows PowerShell 注意</b>：PS 里的 <span class="mono">curl</span> 是 <span class="mono">Invoke-WebRequest</span> 的别名，不是真 curl——它会走 http 撞上强制 HTTPS，报 <span class="mono">400 The plain HTTP request was sent to HTTPS port</span>。请写 <span class="mono">curl.exe -L <span class="site-host">本站</span></span>。</li>
+      <li><b>两个入口同一份数据</b>：<span class="mono">/json</span> 与 <span class="mono">/api/whoami</span> 字段完全一致，后者给页面自己用。</li>
+      <li><b>CORS 全开</b>：响应带 <span class="mono">Access-Control-Allow-Origin: *</span>，前端也能直接 fetch。</li>
+    </ul>
+  </section>
+
+  <section class="cell cell-data" id="data">
+    <div class="cell-head"><h2 class="h2"><svg width="18" height="18"><use href="#i-info"/></svg>数据与限制</h2></div>
+    <ul class="notes">
+      <li><b>归属地精度</b>来自第三方公开地理数据，国家级可靠，城市级为近似值，机房与移动网络出口尤其容易偏。</li>
+      <li><b>你自己的信息</b>优先由边缘节点从连接里直接读取；该能力需要站点部署在支持边缘函数的环境，纯静态预览时会自动回退到公开接口。</li>
+      <li><b>速率限制</b>由上游公开接口决定，单次批量最多 20 个，连续大批量可能返回失败，稍等再试即可。</li>
+      <li><b>服务端不落库</b>：本站没有数据库，不保存查询记录。浏览器里的历史记录存在你本机的 localStorage，可一键清除。</li>
+      <li><b>风险判定</b>是启发式规则，用于帮助你判断「这是家宽还是机房」，不构成安全结论。</li>
+    </ul>
+    <button class="btn btn-ghost btn-sm" id="wipeBtn" type="button">清除本机历史记录</button>
+  </section>
+
+  <section class="cell cell-faq" id="faq">
+    <div class="cell-head"><h2 class="h2"><svg width="18" height="18"><use href="#i-info"/></svg>常见问题</h2></div>
+    <details class="qa"><summary>怎么查看我自己的 IP 地址和归属地？</summary><p>打开本站即自动完成：右上「你的网络体检」会显示你的公网 IP、所在国家与城市、运营商与 ASN、协议版本与 TLS 版本。部署在支持边缘函数的环境时，这些数据直接从你的连接里读取，不经过任何第三方接口；纯静态环境下会自动回退到公开地理数据接口，并在卡片右上角如实标注当前来源。</p></details>
+    <details class="qa"><summary>可以查网站域名的 IP 吗？</summary><p>可以，输入框同时接受 IP 与网站域名。输入 <span class="mono">example.com</span>、<span class="mono">https://example.com/path</span> 甚至中文域名都可以：程序会先剥掉协议、路径与端口，把中文域名转成 punycode，再通过 DNS-over-HTTPS 向公共解析服务查询 A 与 AAAA 记录，拿到地址后继续做归属地、ASN 与风险信号分析。一个域名常常解析出多个地址（CDN 尤其如此），解析框会列出全部地址与 TTL、CNAME 链，点任意一个即可切换分析对象。域名解析在浏览器里直连完成，不经过本站服务器。</p></details>
+    <details class="qa"><summary>IP 归属地是怎么查出来的？准不准？</summary><p>IP 到地理位置的映射来自各网络运营商登记的地址分配块与网络测量数据，由公开地理数据库汇总提供。本站依次尝试多个数据源，任一超时或限流就自动换下一个，并在结果里标明这次是哪一个返回的。<b>国家级结果可靠，城市级是近似值</b>——机房出口、移动网络与共享出口尤其容易偏几十到几百公里。遇到国家和经纬度打架时，以地图上的落点为准。</p></details>
+    <details class="qa"><summary>为什么查出来的城市跟我实际所在地不一样？</summary><p>常见原因有三个：你走的是运营商的集中出口（城域网出口常常不在你所在城市）；你开了代理、VPN 或走了云服务商的网络节点；或者你所在的网络使用共享地址（CGNAT）。这三种情况下查到的都是<b>出口路由器</b>的位置，而不是你设备的物理位置。</p></details>
+    <details class="qa"><summary>IPv4 和 IPv6 都能查吗？</summary><p>都能。输入框自动识别两种格式，例如 <span class="mono">8.8.8.8</span> 与 <span class="mono">2001:4860:4860::8888</span>，也接受 <span class="mono">::ffff:1.2.3.4</span> 这类内嵌 IPv4 的写法。结果卡还会给出该地址的十进制整数、完整展开形式、所在网段（IPv4 的 /24 或 IPv6 的 /64）以及反向解析域名。IPv6 的地理覆盖普遍弱于 IPv4，界面会额外提示置信度较低。</p></details>
+    <details class="qa"><summary>怎么算一个网段包含哪些地址？</summary><p>用「子网 / CIDR 计算器」那一格，输入 <span class="mono">10.0.0.0/22</span> 或 <span class="mono">2001:db8::/48</span> 这样的写法，立刻给出网络地址、广播地址、子网掩码、通配符掩码、可用主机范围与地址总数。全部在浏览器里算，不发任何请求。结果卡里「所在网段」那行是个按钮，点一下会把当前查询 IP 的 /24 或 /64 直接带进计算器。</p></details>
+    <details class="qa"><summary>查域名时为什么没有 IP，却有 MX 和 TXT 记录？</summary><p>因为那类域名本来就不用来提供网站，只用来收发邮件。查询域名时程序会并行取 A、AAAA、MX、TXT、NS、CAA，外加 <span class="mono">_dmarc</span>；如果一个地址都没有、但有其他记录，界面会直接摊开记录清单而不是报解析失败，并顺手做一次邮件配置体检。</p></details>
+    <details class="qa"><summary>挂着 VPN，WebRTC 会不会暴露我的真实 IP？</summary><p>有可能。WebRTC 为了建立点对点连接，会去收集本机的网络候选地址。「浏览器暴露自查」分两轮：第一轮不配 STUN，只看内网地址有没有漏出来；第二轮用 Cloudflare 的公开 STUN 节点拿公网反射地址，再跟你当前的出口 IP 比对。现代浏览器默认启用 mDNS 混淆，把内网地址换成随机 <span class="mono">.local</span> 主机名，那属于保护生效而不是泄露。探测只有你点了才会跑，结果不回传本站。</p></details>
+    <details class="qa"><summary>怎么判断一个 IP 是机房还是家庭宽带？</summary><p>看「风险信号」这一格。它根据 ASN 归属与运营商关键词做启发式判定：命中云厂商或托管商会显著加分，命中移动运营商或住宅宽带则基本不加分，最终给出 0 到 100 分与四档结论。这只是判断线路性质的线索，<b>不是实时威胁情报，也不能证明某个地址在做坏事</b>。</p></details>
+    <details class="qa"><summary>可以批量查询多个 IP 吗？</summary><p>可以。把多个地址用换行、逗号或空格分隔粘贴进「批量查询」，一次最多 20 个，两路并发逐个解析，结果表格给出位置、ASN 与运营商、线路性质与数据来源，可一键导出 CSV。</p></details>
+    <details class="qa"><summary>可以在命令行里用 curl 查吗？</summary><p>可以，而且不需要密钥。<span class="mono">curl -L <span class="site-host">本站</span></span> 只回一行纯文本 IP；<span class="mono">curl -sL <span class="site-host">本站</span>/json</span> 回完整 JSON，加 <span class="mono">?pretty</span> 会格式化。判断依据是 User-Agent 与 Accept：curl、wget、httpie、PowerShell 会拿到纯文本，浏览器照常拿到完整界面。</p></details>
+    <details class="qa"><summary>你们会记录我的查询内容或 IP 吗？</summary><p>本站没有数据库，服务端不保存任何查询记录，页面里也没有第三方统计或广告脚本。唯一的本地存储是「最近查询」列表，它保存在你自己浏览器的 localStorage 里，可以在「数据与限制」一格中一键清除。</p></details>
+  </section>
+</main>
+
+<footer class="foot">
+  <div class="foot-l">
+    <span class="brand-mark brand-mark-sm"><svg width="16" height="16"><use href="#i-globe"/></svg></span>
+    <span class="mono">IP Lookup</span>
+    <span class="foot-sep">/</span>
+    <span class="foot-slogan">位置、线路、风险，一次摊开。</span>
+  </div>
+  <div class="foot-r">
+    <span>无追踪脚本</span>
+    <span class="foot-sep">/</span>
+    <span>结果可分享</span>
+    <span class="foot-sep">/</span>
+    <a class="foot-link" href="#dev">终端接口</a>
+  </div>
+</footer>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script type="module" src="/assets/app.js"></script>
+</body>
+</html>
