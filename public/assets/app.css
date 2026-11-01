@@ -129,6 +129,12 @@ svg{display:block;flex:none}
 }
 .cell{
   position:relative;
+  /* 兜底：新卡片即使漏写跨列规则，也默认占满一行，绝不能回落到
+     grid 默认的 1 列——1 列宽 + 两侧内边距只剩一字宽，整段中文会
+     竖排成一字一行，旁边下一格还会挤到同一行（这就是线上那张截图）。
+     下面各 .cell-* 的跨列规则写在后面，同等优先级、后写优先，所以
+     8/7/5/4 列的卡片不受这条兜底影响。 */
+  grid-column:span 12;
   background:var(--card);
   border:var(--bd) solid var(--ink);
   border-radius:var(--r);
