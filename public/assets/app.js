@@ -13,6 +13,14 @@ import {
   ptrName,
   splitTargets,
 } from "./logic/net.js";
+import {
+  GLOBALPING_ENDPOINT,
+  globalpingBody,
+  packProtocol,
+  probesFromGlobalping,
+  summarizeReach,
+  validateTarget,
+} from "./logic/reach.js";
 
 document.documentElement.classList.add("js");
 
@@ -523,6 +531,8 @@ function renderDetail(view) {
     show($("#shareRes"), false);
     renderDnsBox(view);
     renderRisk(null);
+    show($("#reachStrip"), false);
+    syncReach("");
     return;
   }
   if (top) top.hidden = false;
@@ -596,6 +606,7 @@ function renderDetail(view) {
   MapView.setTarget(view);
   renderDuo(view);
   applyClock(view, "ckTgt");
+  syncReach(view.local ? "" : view.ip);
 }
 
 function renderDnsBox(view) {
@@ -1048,6 +1059,254 @@ async function runPriv() {
   $("#privGo").disabled = false;
 }
 
+const REACH_CACHE = "ip-lookup.reach.v1";
+let reachSeq = 0;
+let reachAbort = null;
+let reachKey = "";
+
+function reachSleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function readReachCache(ip, port) {
+  try {
+    const all = JSON.parse(sessionStorage.getItem(REACH_CACHE) || "{}");
+    const hit = all[`${ip}|${port}`];
+    if (!hit || Date.now() - hit.at > 10 * 60 * 1000) return null;
+    return hit.model;
+  } catch {
+    return null;
+  }
+}
+
+function dropReachCache(ip, port) {
+  try {
+    const all = JSON.parse(sessionStorage.getItem(REACH_CACHE) || "{}");
+    delete all[`${ip}|${port}`];
+    sessionStorage.setItem(REACH_CACHE, JSON.stringify(all));
+  } catch { /* private mode */ }
+}
+
+function writeReachCache(model) {
+  try {
+    const all = JSON.parse(sessionStorage.getItem(REACH_CACHE) || "{}");
+    const keys = Object.keys(all);
+    if (keys.length > 8) delete all[keys[0]];
+    all[`${model.ip}|${model.port}`] = { at: Date.now(), model };
+    sessionStorage.setItem(REACH_CACHE, JSON.stringify(all));
+  } catch { /* private mode */ }
+}
+
+function toneOf(id) {
+  if (id === "clear") return "ok";
+  if (id === "blocked" || id === "error") return "bad";
+  if (id === "down" || id === "mixed" || id === "asymmetric") return "warn";
+  return "muted";
+}
+
+function nodeLine(node) {
+  const where = [node.location, node.provider].filter(Boolean).join(" · ") || node.id;
+  const mark = node.status === "ok"
+    ? `<b class="reach-ok">${node.ms == null ? "通" : `${esc(node.ms)} ms`}</b>`
+    : `<b class="reach-bad">不通</b>`;
+  return `<div class="reach-node"><span>${esc(where)}</span>${mark}</div>`;
+}
+
+function protoBlock(label, side, nodes) {
+  if (!side) {
+    return `<div class="reach-proto"><div class="reach-proto-h"><span>${esc(label)}</span><span class="pill pill-wait">还在测</span></div></div>`;
+  }
+  const pill = side.state === "fail" ? "pill-bad" : side.state === "mixed" ? "pill-dc" : side.state === "ok" ? "pill-home" : "pill-wait";
+  const text = side.total < 2 ? "样本不够" : `通 ${side.ok} · 不通 ${side.fail}`;
+  const list = (nodes || []).map(nodeLine).join("");
+  const offline = side.offline ? `<p class="fine">${side.offline} 个节点离线，已忽略</p>` : "";
+  return `<div class="reach-proto"><div class="reach-proto-h"><span>${esc(label)}</span><span class="pill ${pill}">${text}</span></div>${list}${offline}</div>`;
+}
+
+function columnHtml(heading, icmp, tcp, port, overseas) {
+  const icmpNodes = overseas ? icmp?.overseasSample : icmp?.domesticNodes;
+  const tcpNodes = overseas ? tcp?.overseasSample : tcp?.domesticNodes;
+  const icmpSide = overseas ? icmp?.overseas : icmp?.domestic;
+  const tcpSide = overseas ? tcp?.overseas : tcp?.domestic;
+  return `<h3 class="reach-h">${heading}</h3>${protoBlock("ICMP", icmpSide, icmpNodes)}${protoBlock(`TCP ${port}`, tcpSide, tcpNodes)}`;
+}
+
+function paintReach(model, options = {}) {
+  const banner = $("#reachBanner");
+  const strip = $("#reachStrip");
+  const grid = $("#reachGrid");
+  if (!model) {
+    banner.className = "reach-banner tone-muted";
+    $("#reachTitle").textContent = "还没探测";
+    $("#reachDetail").textContent = "在上面查一个公网 IP，这里会自动对照国内和国外。也可以自己填地址和端口。";
+    $("#reachSrc").textContent = "查询后自动测";
+    show(grid, false);
+    show(strip, false);
+    $("#reachGo").disabled = false;
+    $("#reachGo").textContent = "开始检测";
+    return;
+  }
+  const verdict = model.tcp || model.tcpError
+    ? summarizeReach({ icmp: model.icmp, tcp: model.tcp, port: model.port, icmpError: model.icmpError || "" })
+    : { id: "pending", tone: "muted", title: "正在探测", detail: "归属地已经出来了。国内外节点还在测这个端口，通常要几秒到十几秒。" };
+  if (model.tcpError && !model.tcp) {
+    verdict.id = "error";
+    verdict.tone = "bad";
+    verdict.title = "这次没测成";
+    verdict.detail = model.tcpError;
+  }
+  const tone = toneOf(verdict.id);
+  banner.className = `reach-banner tone-${tone}`;
+  $("#reachTitle").textContent = verdict.title;
+  const cached = options.cached ? " 这是刚才存在这台浏览器里的结果。" : "";
+  $("#reachDetail").textContent = `${verdict.detail}${cached}`;
+  const tcpName = model.tcp?.source === "globalping" ? "TCP Globalping" : model.tcp ? "TCP ping.pe" : "TCP …";
+  const icmpName = model.icmp ? "ICMP Globalping" : model.icmpError ? "ICMP 失败" : "ICMP …";
+  $("#reachSrc").textContent = model.tcp || model.icmp ? `${tcpName} · ${icmpName}` : "探测中";
+  const hasNodes = Boolean(model.tcp || model.icmp);
+  show(grid, hasNodes);
+  if (hasNodes) {
+    $("#reachDomestic").innerHTML = columnHtml("国内", model.icmp, model.tcp, model.port, false);
+    $("#reachOverseas").innerHTML = columnHtml("国外", model.icmp, model.tcp, model.port, true);
+  }
+  const shownIp = $("#rIp")?.textContent?.trim() || "";
+  const detailOpen = $("#detailBody") && !$("#detailBody").hidden && shownIp && shownIp !== "—";
+  if (detailOpen && model.ip === shownIp) {
+    show(strip, true);
+    strip.className = `reach-strip tone-${tone}`;
+    $("#reachStripTitle").textContent = verdict.title;
+    $("#reachStripDetail").textContent = verdict.detail;
+  } else show(strip, false);
+  const waiting = Boolean(model.pending && !model.tcp && !model.tcpError);
+  $("#reachGo").disabled = waiting;
+  $("#reachGo").textContent = waiting ? "探测中…" : "重新检测";
+}
+
+function showReachError(message) {
+  const err = $("#reachErr");
+  err.hidden = false;
+  err.textContent = message;
+}
+
+function probeErrorMessage(error, fallback) {
+  if (error?.client && error.message) return error.message;
+  const text = String(error?.message || "");
+  if (/failed to fetch|networkerror|load failed|network request failed/i.test(text)) return fallback;
+  if (text && text.length <= 80) return text;
+  return fallback;
+}
+
+async function runGlobalping(ip, port, protocol, signal) {
+  const created = await fetch(GLOBALPING_ENDPOINT, {
+    method: "POST",
+    headers: { "content-type": "application/json", accept: "application/json" },
+    body: JSON.stringify(globalpingBody(ip, port, protocol)),
+    signal,
+  });
+  const payload = await created.json().catch(() => ({}));
+  if (created.status === 429) throw new Error("这个网络的探测次数用完了，大约一小时后再试");
+  if (!created.ok || !payload.id) throw new Error("公开探测接口没有接受这次请求");
+  let wait = 400;
+  for (let i = 0; i < 20; i += 1) {
+    await reachSleep(wait);
+    const response = await fetch(`${GLOBALPING_ENDPOINT}/${encodeURIComponent(payload.id)}`, {
+      cache: "no-store",
+      signal,
+      headers: { accept: "application/json" },
+    });
+    if (response.status === 429) throw new Error("这个网络的探测次数用完了，大约一小时后再试");
+    const data = await response.json().catch(() => ({}));
+    if (data.status && data.status !== "in-progress") return data;
+    wait = 700;
+  }
+  throw new Error("探测超时");
+}
+
+async function loadTcp(ip, port, signal) {
+  let fallback = "";
+  try {
+    const response = await fetch(`/api/reach?ip=${encodeURIComponent(ip)}&port=${port}`, {
+      cache: "no-store",
+      signal,
+      headers: { accept: "application/json" },
+    });
+    const data = await response.json().catch(() => ({}));
+    if (response.status === 400) {
+      const error = new Error(data.error || "地址不能探测");
+      error.client = true;
+      throw error;
+    }
+    const useful = data.tcp && (data.tcp.domestic?.total || 0) + (data.tcp.overseas?.total || 0) > 0;
+    if (response.ok && useful) return data.tcp;
+    fallback = data.error || "";
+  } catch (error) {
+    if (error.client || error.name === "AbortError") throw error;
+    fallback = "边缘探测没有连上";
+  }
+  const measurement = await runGlobalping(ip, port, "TCP", signal).catch((error) => {
+    if (error.name === "AbortError") throw error;
+    const why = probeErrorMessage(error, "备用探测没有连上");
+    throw new Error(fallback ? `${fallback}；${why}` : why);
+  });
+  return packProtocol(probesFromGlobalping(measurement), "globalping");
+}
+
+function syncReach(ip) {
+  if (!ip) {
+    reachAbort?.abort();
+    reachSeq += 1;
+    reachKey = "";
+    paintReach(null);
+    return;
+  }
+  const target = validateTarget(ip, $("#reachPort").value);
+  if (target.error) {
+    showReachError(target.error);
+    return;
+  }
+  $("#reachErr").hidden = true;
+  $("#reachIp").value = target.ip;
+  const cached = readReachCache(target.ip, target.port);
+  if (cached) {
+    reachKey = `${target.ip}|${target.port}`;
+    paintReach(cached, { cached: true });
+    return;
+  }
+  if (reachKey === `${target.ip}|${target.port}` && $("#reachGo").disabled) return;
+  void runReach(target.ip, target.port);
+}
+
+async function runReach(ip, port) {
+  const target = validateTarget(ip, port);
+  if (target.error) {
+    showReachError(target.error);
+    return;
+  }
+  $("#reachErr").hidden = true;
+  reachAbort?.abort();
+  const controller = new AbortController();
+  reachAbort = controller;
+  const seq = ++reachSeq;
+  reachKey = `${target.ip}|${target.port}`;
+  const model = { ip: target.ip, port: target.port, tcp: null, icmp: null, tcpError: "", icmpError: "", pending: true };
+  paintReach(model);
+  const tcpTask = loadTcp(target.ip, target.port, controller.signal).then(
+    (tcp) => { model.tcp = tcp; },
+    (error) => { if (error.name !== "AbortError") model.tcpError = probeErrorMessage(error, "端口探测失败"); },
+  );
+  const icmpTask = runGlobalping(target.ip, target.port, "ICMP", controller.signal).then(
+    (measurement) => { model.icmp = packProtocol(probesFromGlobalping(measurement), "globalping"); },
+    (error) => { if (error.name !== "AbortError") model.icmpError = probeErrorMessage(error, "浏览器没有连上 ICMP 探测"); },
+  );
+  await tcpTask;
+  if (seq === reachSeq) paintReach(model);
+  await icmpTask;
+  if (seq !== reachSeq) return;
+  model.pending = false;
+  paintReach(model);
+  if (model.tcp && model.icmp) writeReachCache(model);
+}
+
 function fillHosts() {
   document.querySelectorAll(".site-host").forEach((node) => { node.textContent = location.host; });
 }
@@ -1124,6 +1383,24 @@ document.querySelectorAll(".cidr-chip").forEach((button) => {
   });
 });
 $("#privGo").addEventListener("click", runPriv);
+$("#reachGo").addEventListener("click", () => {
+  const target = validateTarget($("#reachIp").value, $("#reachPort").value);
+  if (target.error) { showReachError(target.error); return; }
+  dropReachCache(target.ip, target.port);
+  void runReach(target.ip, target.port);
+});
+$("#reachPort").addEventListener("keydown", (event) => {
+  if (event.key === "Enter") { event.preventDefault(); $("#reachGo").click(); }
+});
+$("#reachIp").addEventListener("keydown", (event) => {
+  if (event.key === "Enter") { event.preventDefault(); $("#reachGo").click(); }
+});
+document.querySelectorAll(".reach-port").forEach((button) => {
+  button.addEventListener("click", () => {
+    $("#reachPort").value = button.dataset.port;
+    if ($("#reachIp").value.trim()) $("#reachGo").click();
+  });
+});
 $("#wipeBtn").addEventListener("click", () => {
   try { localStorage.removeItem(HISTORY_KEY); } catch { /* ignore */ }
   renderHistory();

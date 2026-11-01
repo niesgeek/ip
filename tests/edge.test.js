@@ -175,4 +175,5 @@ test("function routes include the root, JSON and whoami endpoints", () => {
   assert.ok(routes.include.includes("/"));
   assert.ok(routes.include.includes("/json"));
   assert.ok(routes.include.includes("/api/whoami"));
+  assert.ok(routes.include.includes("/api/reach"));
 });

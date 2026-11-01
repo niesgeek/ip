@@ -42,6 +42,7 @@
     <a href="#hero">查询</a>
     <a href="#mapcard">地图</a>
     <a href="#risk">风险</a>
+    <a href="#reach">连通</a>
     <a href="#batch">批量</a>
     <a href="#cidr">网段</a>
     <a href="#dev">终端</a>
@@ -58,7 +59,7 @@
     <p class="eyebrow"><span class="sq sq-violet"></span>IP Lookup · 免注册 · 无广告</p>
     <h1 class="h1">查一个 IP，<br><mark class="hl hl-pink">位置</mark>、<mark class="hl hl-sky">线路</mark>、<mark class="hl hl-lime">风险信号</mark><br>一次摊开。</h1>
     <p class="tagline"><span class="tl-key">IP</span> Lookup<span class="tl-sep">·</span><em>位置、线路、风险，一次摊开。</em></p>
-    <p class="lede">IP 或网站域名都能查，IPv4 / IPv6 都支持。没有广告、没有追踪脚本、没有注册墙；不想开浏览器也行——<span class="mono">curl -L <span class="site-host">本站</span></span> 直接回你的 IP，加 <span class="mono">/json</span> 回整份情报。</p>
+    <p class="lede">IP 或网站域名都能查，IPv4 / IPv6 都支持。查出公网地址后，还会对照国内和海外节点，看 ICMP 和你填的 TCP 端口通不通。没有广告、没有追踪脚本、没有注册墙；不想开浏览器也行——<span class="mono">curl -L <span class="site-host">本站</span></span> 直接回你的 IP，加 <span class="mono">/json</span> 回整份情报。</p>
     <form class="search" id="qForm" autocomplete="off">
       <span class="search-ico"><svg width="22" height="22"><use href="#i-search"/></svg></span>
       <input id="qInput" name="q" type="text" inputmode="text" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" readonly aria-label="要查询的 IP 地址或网站域名" placeholder="输入 IP 或网站域名，例如 8.8.8.8 / example.com">
@@ -127,6 +128,11 @@
         </div>
         <span class="res-type" id="rType">—</span>
       </div>
+      <div class="reach-strip tone-muted" id="reachStrip" hidden>
+        <b id="reachStripTitle">正在探测</b>
+        <span id="reachStripDetail"></span>
+        <a href="#reach">查看节点</a>
+      </div>
       <div class="dnsbox" id="dnsbox" hidden>
         <div class="dns-head">
           <span class="dns-name mono" id="dnsName">—</span>
@@ -181,6 +187,40 @@
     <dl class="rec-list" id="dnsRec" hidden></dl>
     <div class="mailchk" id="mailChk" hidden></div>
     <p class="fine">记录由浏览器直连 DNS-over-HTTPS 取得。TXT 会同时问几家解析服务、取最完整的那份——有的服务会悄悄少给几条，只信一家容易把「上游漏了」读成「你没配 SPF」。</p>
+  </section>
+
+  <section class="cell cell-reach" id="reach">
+    <div class="cell-head">
+      <h2 class="h2"><svg width="18" height="18"><use href="#i-target"/></svg>国内外连通</h2>
+      <span class="badge badge-grey" id="reachSrc">查询后自动测</span>
+    </div>
+    <p class="lede lede-sm">查出一个公网 IP 之后，这里同时看 ICMP（ping）和一个 TCP 端口，默认 22（SSH）。国外连得上、国内连不上，按这个口径视为在大陆被墙或被封。两边都不通，更像是机器没开、这个端口没在监听，或防火墙把探测丢掉了。家宽和很多服务器本来就没开 22，两边都不通不等于网断了。</p>
+    <div class="reach-bar">
+      <label class="reach-field">IP
+        <input id="reachIp" class="mono" type="text" spellcheck="false" autocomplete="off" autocapitalize="off" aria-label="要探测的 IP" placeholder="跟着上面的查询，也可自己填">
+      </label>
+      <label class="reach-field reach-field-port">端口
+        <input id="reachPort" class="mono" type="text" inputmode="numeric" spellcheck="false" autocomplete="off" aria-label="TCP 端口" value="22">
+      </label>
+      <button class="btn btn-primary btn-sm" id="reachGo" type="button">开始检测</button>
+    </div>
+    <div class="chips">
+      <span class="chips-label">常用端口：</span>
+      <button class="chip reach-port" type="button" data-port="22">22 <i>SSH</i></button>
+      <button class="chip reach-port" type="button" data-port="80">80 <i>HTTP</i></button>
+      <button class="chip reach-port" type="button" data-port="443">443 <i>HTTPS</i></button>
+      <button class="chip reach-port" type="button" data-port="8080">8080</button>
+    </div>
+    <p class="qerr" id="reachErr" role="alert" hidden></p>
+    <div class="reach-banner tone-muted" id="reachBanner" aria-live="polite">
+      <b id="reachTitle">还没探测</b>
+      <span id="reachDetail">在上面查一个公网 IP，这里会自动对照国内和国外。也可以自己填地址和端口。</span>
+    </div>
+    <div class="reach-grid" id="reachGrid" hidden>
+      <div class="reach-col" id="reachDomestic"></div>
+      <div class="reach-col" id="reachOverseas"></div>
+    </div>
+    <p class="fine">TCP 由本站边缘函数去问 ping.pe 的公开节点，里面有大陆的电信、联通、移动和云厂商。这个服务不给浏览器跨域，启动凭证又绑在取页面的那个网络地址上，所以页面不能自己去连。ICMP 由浏览器直连 Globalping 的公开接口，大陆和海外各取几个探针；没登录时大约每小时 250 次探针，算在你当前的网络地址上。香港和台湾算在国外一侧。标成离线的节点不参与判断。这只说明这些节点此刻能不能连上，不是一份封锁名单。</p>
   </section>
 
   <section class="cell cell-risk" id="risk">
@@ -339,6 +379,7 @@
       <li><b>速率限制</b>由上游公开接口决定，单次批量最多 20 个，连续大批量可能返回失败，稍等再试即可。</li>
       <li><b>服务端不落库</b>：本站没有数据库，不保存查询记录。浏览器里的历史记录存在你本机的 localStorage，可一键清除。</li>
       <li><b>风险判定</b>是启发式规则，用于帮助你判断「这是家宽还是机房」，不构成安全结论。</li>
+      <li><b>连通性</b>只看此刻从若干公开节点出发，能不能 ping 通、以及指定的 TCP 端口能不能连上。国外通而国内不通，才按「被墙 / 被封」来读；两边都不通，先怀疑机器或端口本身。节点离线不算失败。探测有速率限制，太密集会被要求稍后再试。</li>
     </ul>
     <button class="btn btn-ghost btn-sm" id="wipeBtn" type="button">清除本机历史记录</button>
   </section>
@@ -353,6 +394,7 @@
     <details class="qa"><summary>怎么算一个网段包含哪些地址？</summary><p>用「子网 / CIDR 计算器」那一格，输入 <span class="mono">10.0.0.0/22</span> 或 <span class="mono">2001:db8::/48</span> 这样的写法，立刻给出网络地址、广播地址、子网掩码、通配符掩码、可用主机范围与地址总数。全部在浏览器里算，不发任何请求。结果卡里「所在网段」那行是个按钮，点一下会把当前查询 IP 的 /24 或 /64 直接带进计算器。</p></details>
     <details class="qa"><summary>查域名时为什么没有 IP，却有 MX 和 TXT 记录？</summary><p>因为那类域名本来就不用来提供网站，只用来收发邮件。查询域名时程序会并行取 A、AAAA、MX、TXT、NS、CAA，外加 <span class="mono">_dmarc</span>；如果一个地址都没有、但有其他记录，界面会直接摊开记录清单而不是报解析失败，并顺手做一次邮件配置体检。</p></details>
     <details class="qa"><summary>挂着 VPN，WebRTC 会不会暴露我的真实 IP？</summary><p>有可能。WebRTC 为了建立点对点连接，会去收集本机的网络候选地址。「浏览器暴露自查」分两轮：第一轮不配 STUN，只看内网地址有没有漏出来；第二轮用 Cloudflare 的公开 STUN 节点拿公网反射地址，再跟你当前的出口 IP 比对。现代浏览器默认启用 mDNS 混淆，把内网地址换成随机 <span class="mono">.local</span> 主机名，那属于保护生效而不是泄露。探测只有你点了才会跑，结果不回传本站。</p></details>
+    <details class="qa"><summary>怎么看一个 IP 在国内是不是被墙？</summary><p>查完这个地址后，页面会自动测 ICMP，以及一个 TCP 端口（默认 <span class="mono">22</span>，可以改成 80、443 或其他）。国内节点连不上、国外节点连得上，就按「这个端口在大陆被封」来读。两边都通，则这个端口不像被墙。两边都不通，更像是机器没开、端口没在监听，或防火墙把探测丢掉了，不一定是被墙。只 ping 通还不够：有的封锁会留着 ICMP，单封 TCP。香港和台湾的节点算在国外一侧。这是若干公开探针此刻的结果，不是一份官方封锁名单。</p></details>
     <details class="qa"><summary>怎么判断一个 IP 是机房还是家庭宽带？</summary><p>看「风险信号」这一格。它根据 ASN 归属与运营商关键词做启发式判定：命中云厂商或托管商会显著加分，命中移动运营商或住宅宽带则基本不加分，最终给出 0 到 100 分与四档结论。这只是判断线路性质的线索，<b>不是实时威胁情报，也不能证明某个地址在做坏事</b>。</p></details>
     <details class="qa"><summary>可以批量查询多个 IP 吗？</summary><p>可以。把多个地址用换行、逗号或空格分隔粘贴进「批量查询」，一次最多 20 个，两路并发逐个解析，结果表格给出位置、ASN 与运营商、线路性质与数据来源，可一键导出 CSV。</p></details>
     <details class="qa"><summary>可以在命令行里用 curl 查吗？</summary><p>可以，而且不需要密钥。<span class="mono">curl -L <span class="site-host">本站</span></span> 只回一行纯文本 IP；<span class="mono">curl -sL <span class="site-host">本站</span>/json</span> 回完整 JSON，加 <span class="mono">?pretty</span> 会格式化。判断依据是 User-Agent 与 Accept：curl、wget、httpie、PowerShell 会拿到纯文本，浏览器照常拿到完整界面。</p></details>
