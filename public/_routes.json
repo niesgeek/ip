@@ -1,5 +1,5 @@
 {
   "version": 1,
-  "include": ["/", "/json", "/json/*", "/api/whoami", "/api/whoami/*"],
+  "include": ["/", "/json", "/json/*", "/api/whoami", "/api/whoami/*", "/api/reach", "/api/reach/*"],
   "exclude": []
 }

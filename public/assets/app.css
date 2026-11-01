@@ -665,6 +665,51 @@ html[lang="en"] .kv-2 .kv-row{padding:6px 2px}
 }
 .foot-link:hover{color:var(--violet-deep);border-bottom-color:var(--violet)}
 
+/* ---------- 国内外连通 ---------- */
+.cell-reach{grid-column:span 12;background:var(--paper-2)}
+.reach-bar{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
+.reach-field{display:flex;flex-direction:column;gap:6px;font-size:12px;font-weight:700;color:var(--ink-70);flex:1 1 220px;min-width:0}
+.reach-field-port{flex:0 1 120px}
+.reach-field input{
+  width:100%;padding:10px 12px;font-size:14px;font-weight:500;
+  background:var(--card);border:var(--bd) solid var(--ink);border-radius:12px;box-shadow:var(--sh-xs);outline:0;
+}
+.reach-field input:focus{box-shadow:var(--sh-sm)}
+.reach-banner{
+  display:flex;flex-direction:column;gap:4px;
+  padding:12px 14px;border:var(--bd) solid var(--ink);border-radius:var(--r-sm);
+  background:var(--card);box-shadow:var(--sh-xs);
+}
+.reach-banner b{font-size:16px}
+.reach-banner span,.reach-strip span{color:var(--ink-70);font-size:13.5px;line-height:1.65}
+.reach-banner.tone-ok,.reach-strip.tone-ok{background:var(--lime-soft)}
+.reach-banner.tone-bad,.reach-strip.tone-bad{background:var(--coral-soft)}
+.reach-banner.tone-warn,.reach-strip.tone-warn{background:rgba(255,201,77,.35)}
+.reach-banner.tone-muted,.reach-strip.tone-muted{background:var(--sky-soft)}
+.reach-strip{
+  display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;
+  padding:10px 12px;border:var(--bd-sm) solid var(--ink);border-radius:var(--r-xs);
+  box-shadow:var(--sh-xs);
+}
+.reach-strip b{font-size:14px}
+.reach-strip a{margin-left:auto;font-weight:700;border-bottom:2px solid var(--ink)}
+.reach-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.reach-col{
+  display:flex;flex-direction:column;gap:10px;min-width:0;
+  padding:12px;background:var(--card);border:var(--bd-sm) solid var(--ink);border-radius:var(--r-sm);box-shadow:var(--sh-xs);
+}
+.reach-h{font-size:15px}
+.reach-proto{display:flex;flex-direction:column;gap:6px}
+.reach-proto-h{display:flex;align-items:center;justify-content:space-between;gap:8px;font-family:var(--f-mono);font-size:12px;font-weight:700}
+.reach-node{
+  display:flex;align-items:baseline;justify-content:space-between;gap:10px;
+  padding:4px 0;border-bottom:1px dashed var(--ink-18);font-size:12.5px;
+}
+.reach-node span{min-width:0;overflow-wrap:anywhere}
+.reach-ok{color:#1d6b2f;font-family:var(--f-mono);font-size:12px;white-space:nowrap}
+.reach-bad{color:var(--coral);font-family:var(--f-mono);font-size:12px;white-space:nowrap}
+#reachGo{align-self:flex-end}
+
 /* ---------- responsive ---------- */
 @media (max-width:1120px){
   .cell-hero,.cell-myip,.cell-detail,.cell-map,.cell-dnsrec,.cell-risk,.cell-batch,.cell-clock,.cell-facts,.cell-cidr,.cell-priv,.cell-dev,.cell-data{grid-column:span 12}
@@ -677,6 +722,8 @@ html[lang="en"] .kv-2 .kv-row{padding:6px 2px}
 @media (max-width:860px){
   .bar-nav{display:none}
   .kv-2{grid-template-columns:1fr}
+  .reach-grid{grid-template-columns:1fr}
+  .reach-strip a{margin-left:0}
 }
 @media (max-width:620px){
   :root{--gap:16px;--r:18px;--sh:5px 5px 0 var(--ink)}
