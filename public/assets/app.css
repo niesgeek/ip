@@ -687,18 +687,11 @@ html[lang="en"] .kv-2 .kv-row{padding:6px 2px}
   background:var(--card);box-shadow:var(--sh-xs);
 }
 .reach-banner b{font-size:16px}
-.reach-banner span,.reach-strip span{color:var(--ink-70);font-size:13.5px;line-height:1.65}
-.reach-banner.tone-ok,.reach-strip.tone-ok{background:var(--lime-soft)}
-.reach-banner.tone-bad,.reach-strip.tone-bad{background:var(--coral-soft)}
-.reach-banner.tone-warn,.reach-strip.tone-warn{background:rgba(255,201,77,.35)}
-.reach-banner.tone-muted,.reach-strip.tone-muted{background:var(--sky-soft)}
-.reach-strip{
-  display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;
-  padding:10px 12px;border:var(--bd-sm) solid var(--ink);border-radius:var(--r-xs);
-  box-shadow:var(--sh-xs);
-}
-.reach-strip b{font-size:14px}
-.reach-strip a{margin-left:auto;font-weight:700;border-bottom:2px solid var(--ink)}
+.reach-banner span{color:var(--ink-70);font-size:13.5px;line-height:1.65}
+.reach-banner.tone-ok{background:var(--lime-soft)}
+.reach-banner.tone-bad{background:var(--coral-soft)}
+.reach-banner.tone-warn{background:rgba(255,201,77,.35)}
+.reach-banner.tone-muted{background:var(--sky-soft)}
 .reach-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 .reach-col{
   display:flex;flex-direction:column;gap:10px;min-width:0;
@@ -729,7 +722,6 @@ html[lang="en"] .kv-2 .kv-row{padding:6px 2px}
   .bar-nav{display:none}
   .kv-2{grid-template-columns:1fr}
   .reach-grid{grid-template-columns:1fr}
-  .reach-strip a{margin-left:0}
 }
 @media (max-width:620px){
   :root{--gap:16px;--r:18px;--sh:5px 5px 0 var(--ink)}

@@ -531,7 +531,6 @@ function renderDetail(view) {
     show($("#shareRes"), false);
     renderDnsBox(view);
     renderRisk(null);
-    show($("#reachStrip"), false);
     syncReach("");
     return;
   }
@@ -1133,7 +1132,6 @@ function columnHtml(heading, icmp, tcp, port, overseas) {
 
 function paintReach(model, options = {}) {
   const banner = $("#reachBanner");
-  const strip = $("#reachStrip");
   const grid = $("#reachGrid");
   if (!model) {
     banner.className = "reach-banner tone-muted";
@@ -1141,7 +1139,6 @@ function paintReach(model, options = {}) {
     $("#reachDetail").textContent = "在上面查一个公网 IP，这里会自动对照国内和国外。也可以自己填地址和端口。";
     $("#reachSrc").textContent = "查询后自动测";
     show(grid, false);
-    show(strip, false);
     $("#reachGo").disabled = false;
     $("#reachGo").textContent = "开始检测";
     return;
@@ -1169,14 +1166,6 @@ function paintReach(model, options = {}) {
     $("#reachDomestic").innerHTML = columnHtml("国内", model.icmp, model.tcp, model.port, false);
     $("#reachOverseas").innerHTML = columnHtml("国外", model.icmp, model.tcp, model.port, true);
   }
-  const shownIp = $("#rIp")?.textContent?.trim() || "";
-  const detailOpen = $("#detailBody") && !$("#detailBody").hidden && shownIp && shownIp !== "—";
-  if (detailOpen && model.ip === shownIp) {
-    show(strip, true);
-    strip.className = `reach-strip tone-${tone}`;
-    $("#reachStripTitle").textContent = verdict.title;
-    $("#reachStripDetail").textContent = verdict.detail;
-  } else show(strip, false);
   const waiting = Boolean(model.pending && !model.tcp && !model.tcpError);
   $("#reachGo").disabled = waiting;
   $("#reachGo").textContent = waiting ? "探测中…" : "重新检测";
