@@ -3,17 +3,46 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>浏览器指纹 · 本地查看环境信号 | IP Lookup</title>
-<meta name="description" content="在你自己的浏览器里查看大约六十项环境信号，并用 SHA-256 收成一个指纹 ID。可以再测一次、逐项对比。读数不上传，也不写入本地存储。">
+<title data-en="Browser fingerprint · local signals | IP Lookup">浏览器指纹 · 本地查看环境信号 | IP Lookup</title>
+<meta name="description" data-en="About sixty environment signals, folded into a SHA-256 fingerprint ID in your browser. Run it again and compare. Readings are not uploaded and are not written to local storage." content="在你自己的浏览器里查看大约六十项环境信号，并用 SHA-256 收成一个指纹 ID。可以再测一次、逐项对比。读数不上传，也不写入本地存储。">
 <meta name="robots" content="index,follow">
 <meta name="theme-color" content="#F5EFE1">
+<meta name="color-scheme" content="light">
+<script>
+(function () {
+  var mode = "auto";
+  var prefersDark = false;
+  try {
+    var raw = localStorage.getItem("ip-ui-theme");
+    if (raw === "light" || raw === "dark" || raw === "auto") mode = raw;
+  } catch (e) {}
+  try { prefersDark = matchMedia("(prefers-color-scheme: dark)").matches; } catch (e) {}
+  var dark = mode === "dark" || (mode !== "light" && prefersDark);
+  var root = document.documentElement;
+  root.setAttribute("data-theme", dark ? "dark" : "light");
+  root.setAttribute("data-theme-mode", mode);
+  var color = document.querySelector('meta[name="theme-color"]');
+  if (color) color.setAttribute("content", dark ? "#12110e" : "#F5EFE1");
+  var scheme = document.querySelector('meta[name="color-scheme"]');
+  if (scheme) scheme.setAttribute("content", dark ? "dark" : "light");
+  var lang = "zh";
+  try {
+    var saved = localStorage.getItem("ip-ui-lang");
+    if (saved === "en" || saved === "zh") lang = saved;
+  } catch (e) {}
+  root.lang = lang === "en" ? "en" : "zh-CN";
+  if (lang === "en") root.classList.add("i18n-wait");
+  setTimeout(function () { root.classList.remove("i18n-wait"); }, 2500);
+})();
+</script>
+<style>html.i18n-wait body{visibility:hidden}</style>
 <meta name="referrer" content="no-referrer">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
-<link rel="stylesheet" href="/assets/app.css?v=4">
-<link rel="stylesheet" href="/assets/fingerprint.css?v=2">
+<link rel="stylesheet" href="/assets/app.css?v=5">
+<link rel="stylesheet" href="/assets/fingerprint.css?v=3">
 </head>
 <body>
 <svg width="0" height="0" aria-hidden="true" style="position:absolute">
@@ -32,14 +61,28 @@
     <span class="brand-mark"><svg width="20" height="20"><use href="#i-globe"/></svg></span>
     <span class="brand-txt">IP<em>.</em>Lookup</span>
   </a>
-  <a class="bar-fp" href="/">返回查询</a>
-  <button class="bar-me" id="barMe" type="button" title="你的公网 IP，点击复制">
-    <span class="dot dot-lime"></span><span class="bar-me-ip" id="barMeIp">读取中…</span>
-  </button>
+  <a class="bar-fp" href="/" data-en="Back">返回查询</a>
+  <div class="bar-side">
+    <button class="bar-me" id="barMe" type="button" title="你的公网 IP，点击复制" data-en-title="Your public IP. Click to copy.">
+      <span class="dot dot-lime"></span><span class="bar-me-ip" id="barMeIp">读取中…</span>
+    </button>
+    <div class="theme-switch" id="themeSwitch" role="group" aria-label="主题">
+      <button type="button" data-theme-choice="auto" aria-pressed="true"><span class="theme-full">自动</span><span class="theme-short" aria-hidden="true"><svg viewBox="0 0 16 16" width="13" height="13"><circle cx="8" cy="8" r="5.25" fill="none" stroke="currentColor" stroke-width="1.6"></circle><path fill="currentColor" d="M8 2.75a5.25 5.25 0 0 0 0 10.5z"></path></svg></span></button>
+      <button type="button" data-theme-choice="light" aria-pressed="false"><span class="theme-full">浅色</span><span class="theme-short" aria-hidden="true"><svg viewBox="0 0 16 16" width="13" height="13"><circle cx="8" cy="8" r="2.3" fill="currentColor"></circle><g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.2 3.2l1.4 1.4M11.4 11.4l1.4 1.4M12.8 3.2l-1.4 1.4M4.6 11.4l-1.4 1.4"></path></g></svg></span></button>
+      <button type="button" data-theme-choice="dark" aria-pressed="false"><span class="theme-full">深色</span><span class="theme-short" aria-hidden="true"><svg viewBox="0 0 16 16" width="13" height="13"><path fill="currentColor" d="M9.4 1.7a5.5 5.5 0 1 0 4.8 8.1A4.5 4.5 0 1 1 9.4 1.7z"></path></svg></span></button>
+    </div>
+    <button type="button" class="lang" id="langToggle" aria-label="切换到英文" data-en-aria="Switch to Chinese">
+      <span class="lang-flag" aria-hidden="true">
+        <svg class="flag flag-us" viewBox="0 0 22 14" width="22" height="14"><rect width="22" height="14" fill="#fff"></rect><rect y="0" width="22" height="2" fill="#b22234"></rect><rect y="4" width="22" height="2" fill="#b22234"></rect><rect y="8" width="22" height="2" fill="#b22234"></rect><rect y="12" width="22" height="2" fill="#b22234"></rect><rect width="9" height="8" fill="#3c3b6e"></rect></svg>
+        <svg class="flag flag-cn" viewBox="0 0 30 20" width="22" height="14"><rect width="30" height="20" fill="#de2910"></rect><polygon fill="#ffde00" points="6,2.2 7.35,6.15 11.5,6.15 8.15,8.55 9.4,12.5 6,10.05 2.6,12.5 3.85,8.55 0.5,6.15 4.65,6.15"></polygon></svg>
+      </span>
+      <span class="lang-txt" data-en="中文">EN</span>
+    </button>
+  </div>
 </header>
 
 <div class="fp-sticky" id="fpSticky" hidden>
-  <span class="fp-sticky-k mono">指纹 ID</span>
+  <span class="fp-sticky-k mono" data-en="Fingerprint ID">指纹 ID</span>
   <span class="fp-sticky-id mono" id="fpStickyId">…</span>
   <span class="fp-sticky-band" id="fpStickyBand"></span>
   <button class="btn btn-primary btn-sm" id="fpStickyRun" type="button">再测一次</button>
@@ -47,9 +90,9 @@
 
 <main class="fp">
   <header class="fp-intro">
-    <p class="eyebrow"><span class="sq sq-violet"></span>本地采样 · 不上传 · 刷新即清</p>
-    <h1 class="h1">大约六十项环境信号，<br>收成一个<mark class="hl hl-pink">指纹 ID</mark>。</h1>
-    <p class="lede">浏览器为了排版和选择功能，本来就会说出语言、时区、屏幕、核心数，以及画布、显卡和字体量出来的差别。这些事实拼在一起，就能在没有 Cookie 的情况下把两台设备分开。这一页把它们摊开，用 SHA-256 收成一个 ID。窗口大小、存储用量和网络类型会变，只参与估算，不写进 ID。结果留在这一页的内存里，刷新就没有了。</p>
+    <p class="eyebrow"><span class="sq sq-violet"></span><span data-en="Local sample · not uploaded · gone on refresh">本地采样 · 不上传 · 刷新即清</span></p>
+    <h1 class="h1" data-en-html="About sixty environment signals,<br>folded into one <mark class=&quot;hl hl-pink&quot;>fingerprint ID</mark>.">大约六十项环境信号，<br>收成一个<mark class="hl hl-pink">指纹 ID</mark>。</h1>
+    <p class="lede" data-en="To lay out a page and choose features, a browser already reports language, time zone, screen, core count, and differences measured from canvas, graphics, and fonts. Together those facts can separate two devices without a cookie. This page lays them out and folds them into a SHA-256 ID. Window size, storage use, and network type change, so they only affect the estimate and stay out of the ID. The result lives in this page’s memory and is gone after a refresh.">浏览器为了排版和选择功能，本来就会说出语言、时区、屏幕、核心数，以及画布、显卡和字体量出来的差别。这些事实拼在一起，就能在没有 Cookie 的情况下把两台设备分开。这一页把它们摊开，用 SHA-256 收成一个 ID。窗口大小、存储用量和网络类型会变，只参与估算，不写进 ID。结果留在这一页的内存里，刷新就没有了。</p>
   </header>
 
   <section class="fp-hero" id="fpHero" aria-labelledby="fpIdLabel">
@@ -131,56 +174,56 @@
   <div id="fpList"><p class="fp-empty">正在本地采样…</p></div>
 
   <section class="fp-about">
-    <h2 class="h2"><svg width="18" height="18" aria-hidden="true"><use href="#i-info"/></svg>指纹是什么</h2>
-    <p>没有一项需要你点同意。浏览器要正确显示网页，就得知道像素比、语言和自己支持哪些接口。网站把这些已经存在的事实收起来做成哈希，就可以在你换了 IP、清了 Cookie 之后，仍然看出是不是同一台环境。它不是存在你机器上的一个文件，所以也没有一个开关能把它「清掉」。</p>
-    <p>这一页最稳的是渲染那一组：同一套图形画出来的像素、WebGL 报出的参数、离线音频的几个样本、候选字体的宽度、若干盒子的布局尺寸。它们取决于显卡、驱动、字体和内核，不是一个可以随便勾选的偏好。</p>
-    <p>两次 ID 相同，只说明这些稳定项没变；ID 变了，也只说明其中某一项变了。要判断一个网站能不能认出你，还得看对方服务器上的数据。这一页做不到那件事。</p>
+    <h2 class="h2"><svg width="18" height="18" aria-hidden="true"><use href="#i-info"/></svg><span data-en="What a fingerprint is">指纹是什么</span></h2>
+    <p data-en="Nothing here asks you to agree. To draw a page, a browser already knows pixel ratio, language, and which APIs exist. A site can hash those existing facts and still tell two environments apart after the IP changes and cookies are cleared. It is not a file on the machine, so there is no switch that clears it.">没有一项需要你点同意。浏览器要正确显示网页，就得知道像素比、语言和自己支持哪些接口。网站把这些已经存在的事实收起来做成哈希，就可以在你换了 IP、清了 Cookie 之后，仍然看出是不是同一台环境。它不是存在你机器上的一个文件，所以也没有一个开关能把它「清掉」。</p>
+    <p data-en="The steadiest group is rendering: pixels from one fixed drawing, WebGL parameters, a few offline-audio samples, candidate font widths, and the size of a few boxes. Those depend on the graphics adapter, driver, fonts, and engine. They are not a preference you can tick.">这一页最稳的是渲染那一组：同一套图形画出来的像素、WebGL 报出的参数、离线音频的几个样本、候选字体的宽度、若干盒子的布局尺寸。它们取决于显卡、驱动、字体和内核，不是一个可以随便勾选的偏好。</p>
+    <p data-en="Two identical IDs only mean the stable items did not change. A changed ID only means one of them changed. Whether some other site can recognize you depends on data on their server. This page cannot answer that.">两次 ID 相同，只说明这些稳定项没变；ID 变了，也只说明其中某一项变了。要判断一个网站能不能认出你，还得看对方服务器上的数据。这一页做不到那件事。</p>
 
-    <h2 class="h2"><svg width="18" height="18" aria-hidden="true"><use href="#i-shield"/></svg>这一页自己做了什么</h2>
+    <h2 class="h2"><svg width="18" height="18" aria-hidden="true"><use href="#i-shield"/></svg><span data-en="What this page does">这一页自己做了什么</span></h2>
     <ul class="notes">
-      <li><b>只请求本站已有的接口。</b>采样时会 GET <span class="mono">/api/whoami</span>，和首页读你的连接是同一份实现。探针的取值不会放进这个请求，也不会发到别的域名。</li>
-      <li><b>不申请权限。</b>不调用摄像头、麦克风和定位。权限那一行只查询当前状态。响应头里也关掉了这三项，避免误弹窗。</li>
-      <li><b>不留下结果。</b>不写 Cookie，也不把指纹 ID 放进 localStorage。再测一次只和这一页内存里的上一轮比较，刷新就清掉。</li>
-      <li><b>易变项不进 ID。</b>窗口尺寸、存储已用量、网络类型估计会列出来，并按一半计入估算，但不会改掉指纹 ID。所以再测一次仍然有意义。</li>
+      <li data-en-html="<b>Only the API this site already has.</b> Sampling GETs <span class=&quot;mono&quot;>/api/whoami</span>, the same implementation the home page uses. Probe values are not put in that request and are not sent to another domain."><b>只请求本站已有的接口。</b>采样时会 GET <span class="mono">/api/whoami</span>，和首页读你的连接是同一份实现。探针的取值不会放进这个请求，也不会发到别的域名。</li>
+      <li data-en-html="<b>No permission prompts.</b> Camera, microphone, and location are not called. The permission row only queries the current state. The response headers also turn those three off, so a prompt does not appear by mistake."><b>不申请权限。</b>不调用摄像头、麦克风和定位。权限那一行只查询当前状态。响应头里也关掉了这三项，避免误弹窗。</li>
+      <li data-en-html="<b>The result is not kept.</b> No cookie, and the fingerprint ID is not written to localStorage. Another run compares only with the previous round still in this page’s memory. A refresh clears it."><b>不留下结果。</b>不写 Cookie，也不把指纹 ID 放进 localStorage。再测一次只和这一页内存里的上一轮比较，刷新就清掉。</li>
+      <li data-en-html="<b>Volatile rows stay out of the ID.</b> Window size, storage use, and the network-type estimate are listed and count at half weight, but they do not change the fingerprint ID. Another run is still useful."><b>易变项不进 ID。</b>窗口尺寸、存储已用量、网络类型估计会列出来，并按一半计入估算，但不会改掉指纹 ID。所以再测一次仍然有意义。</li>
     </ul>
     <div class="fp-limit">
       <svg width="18" height="18" aria-hidden="true"><use href="#i-info"/></svg>
-      <p><b>这一页明确不做的事。</b>没有 JA3 / JA4：那要看 TLS Client Hello，<span class="mono">/api/whoami</span> 不返回这个字段，Cloudflare Pages 的免费环境通常也不提供。没有把同一套探针放进 iframe 或 Worker 再对一遍。没有实测的访客比例，上面的百分比是权重估算。</p>
+      <p data-en-html="<b>What this page deliberately does not do.</b> No JA3 / JA4: that needs the TLS Client Hello, and <span class=&quot;mono&quot;>/api/whoami</span> does not return it. Free Cloudflare Pages usually does not either. The same probes are not run again inside an iframe or a Worker. There is no measured visitor rate. The percentage above is a weight estimate."><b>这一页明确不做的事。</b>没有 JA3 / JA4：那要看 TLS Client Hello，<span class="mono">/api/whoami</span> 不返回这个字段，Cloudflare Pages 的免费环境通常也不提供。没有把同一套探针放进 iframe 或 Worker 再对一遍。没有实测的访客比例，上面的百分比是权重估算。</p>
     </div>
 
     <details class="qa">
-      <summary>再测一次在比什么？</summary>
-      <p>把全部信号再采一遍，和这一页里留着的上一轮逐项比较。变了的行会标出来，顶部会说明指纹 ID 变没变。窗口大小这类易变项变了而 ID 没变，是预期结果。这只是同一台设备的两次快照，不能证明某个网站会把你认成同一个人。</p>
+      <summary data-en="What does another run compare?">再测一次在比什么？</summary>
+      <p data-en="Every signal is sampled again and compared with the previous round still on this page. Changed rows are marked, and the top says whether the fingerprint ID changed. A volatile item such as window size can change while the ID stays the same. That is expected. These are two snapshots of one device. They do not prove a website would recognize you as the same person.">把全部信号再采一遍，和这一页里留着的上一轮逐项比较。变了的行会标出来，顶部会说明指纹 ID 变没变。窗口大小这类易变项变了而 ID 没变，是预期结果。这只是同一台设备的两次快照，不能证明某个网站会把你认成同一个人。</p>
     </details>
     <details class="qa">
-      <summary>为什么有的项是「未提供」或「被拦住」？</summary>
-      <p>未提供表示这个浏览器没有那个接口，例如不少浏览器不实现 <span class="mono">navigator.userAgentData</span>。被拦住表示接口在，但读的时候被拒绝。两种都不是页面坏了。「不给」本身也会进入指纹 ID，因为这也是一种差别。摄像头、麦克风和定位被本页的策略关掉，查询结果会写成站点策略拦住，不是你刚点了拒绝。</p>
+      <summary data-en="Why are some rows “not provided” or “blocked”?">为什么有的项是「未提供」或「被拦住」？</summary>
+      <p data-en-html="Not provided means this browser does not have that API, for example many browsers do not implement <span class=&quot;mono&quot;>navigator.userAgentData</span>. Blocked means the API exists but the read was refused. Neither means the page is broken. A refusal still enters the fingerprint ID, because that difference is real. Camera, microphone, and location are turned off by this page’s policy, so the reading says the site policy blocked them. That is not you just clicking deny.">未提供表示这个浏览器没有那个接口，例如不少浏览器不实现 <span class="mono">navigator.userAgentData</span>。被拦住表示接口在，但读的时候被拒绝。两种都不是页面坏了。「不给」本身也会进入指纹 ID，因为这也是一种差别。摄像头、麦克风和定位被本页的策略关掉，查询结果会写成站点策略拦住，不是你刚点了拒绝。</p>
     </details>
     <details class="qa">
-      <summary>这和首页的浏览器暴露自查是什么关系？</summary>
-      <p>首页那一格看的是 WebRTC 会不会绕过代理，把真实出口地址交出去，而且只有你点了才跑。这一页看的是设备侧已经公开的环境信号，打开就会采样。两边都不把结果上传。</p>
+      <summary data-en="How does this relate to the exposure check on the home page?">这和首页的浏览器暴露自查是什么关系？</summary>
+      <p data-en="The home-page card asks whether WebRTC steps around a proxy and hands out the real exit, and it runs only after you click. This page looks at environment signals the device already exposes, and it samples when you open it. Neither uploads the result.">首页那一格看的是 WebRTC 会不会绕过代理，把真实出口地址交出去，而且只有你点了才跑。这一页看的是设备侧已经公开的环境信号，打开就会采样。两边都不把结果上传。</p>
     </details>
     <details class="qa">
-      <summary>撞车数字能不能当成统计？</summary>
-      <p>不能。它假设各项互相独立，再按事先写好的权重换成一个数量级。真实用户的屏幕、内核和时区经常一起相同，所以实际相同的人会更多。本站没有访客库，不会出现「多少访问者里有几个和你一样」这种句子。</p>
+      <summary data-en="Can the collision number be treated as a statistic?">撞车数字能不能当成统计？</summary>
+      <p data-en="No. It assumes the items are independent and turns the written weights into an order of magnitude. Real screens, engines, and time zones often travel together, so more people match than the number suggests. This site has no visitor database and will not say how many visitors match you.">不能。它假设各项互相独立，再按事先写好的权重换成一个数量级。真实用户的屏幕、内核和时区经常一起相同，所以实际相同的人会更多。本站没有访客库，不会出现「多少访问者里有几个和你一样」这种句子。</p>
     </details>
   </section>
 
   <section class="fp-next" aria-label="相关页面">
     <a class="fp-next-card" href="/">
-      <span class="fp-k">回到首页</span>
-      <strong>IP 与域名查询</strong>
-      <span>位置、线路、风险和国内外连通，还是在原来那一页。</span>
+      <span class="fp-k" data-en="Back home">回到首页</span>
+      <strong data-en="IP and domain lookup">IP 与域名查询</strong>
+      <span data-en="Place, route, risk, and the China-versus-abroad check are still on the original page.">位置、线路、风险和国内外连通，还是在原来那一页。</span>
     </a>
     <a class="fp-next-card" href="/#privacy">
-      <span class="fp-k">配套的一格</span>
-      <strong>浏览器暴露自查</strong>
-      <span>WebRTC 会不会把真实出口地址直接交出去。</span>
+      <span class="fp-k" data-en="The paired card">配套的一格</span>
+      <strong data-en="What the browser exposes">浏览器暴露自查</strong>
+      <span data-en="Whether WebRTC hands out the real exit address.">WebRTC 会不会把真实出口地址直接交出去。</span>
     </a>
     <a class="fp-next-card" href="/#dev">
-      <span class="fp-k">同一份连接数据</span>
-      <strong>终端里的 /json</strong>
-      <span>这一页「连接回执」用的就是 curl 拿到的那份 JSON。</span>
+      <span class="fp-k" data-en="The same connection data">同一份连接数据</span>
+      <strong data-en="/json in the terminal">终端里的 /json</strong>
+      <span data-en="The connection receipt on this page is the same JSON curl receives.">这一页「连接回执」用的就是 curl 拿到的那份 JSON。</span>
     </a>
   </section>
 </main>
@@ -190,16 +233,19 @@
     <span class="brand-mark brand-mark-sm"><svg width="16" height="16"><use href="#i-globe"/></svg></span>
     <span class="mono">IP Lookup</span>
     <span class="foot-sep">/</span>
-    <a class="foot-link" href="/">返回查询</a>
+    <a class="foot-link" href="/" data-en="Back to lookup">返回查询</a>
+    <span class="foot-sep">/</span>
+    <a class="foot-link" href="/contact" data-en="Contact">联系</a>
   </div>
   <div class="foot-r">
-    <span>结果不上传</span>
+    <span data-en="Results are not uploaded">结果不上传</span>
     <span class="foot-sep">/</span>
-    <span>刷新即清</span>
+    <span data-en="Gone on refresh">刷新即清</span>
   </div>
 </footer>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 <noscript><p class="fp-noscript">需要启用 JavaScript。采样在你的浏览器里进行，不会改到服务器上的数据。</p></noscript>
-<script type="module" src="/assets/fingerprint.js?v=2"></script>
+<script src="/assets/theme.js?v=1"></script>
+<script type="module" src="/assets/fingerprint.js?v=3"></script>
 </body>
 </html>

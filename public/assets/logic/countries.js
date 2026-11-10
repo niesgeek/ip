@@ -36,16 +36,32 @@ const CONTINENTS = {
   AF: "非洲", AN: "南极洲", AS: "亚洲", EU: "欧洲", NA: "北美洲", OC: "大洋洲", SA: "南美洲",
 };
 
-export function countryLabel(code, name) {
+const CONTINENTS_EN = {
+  AF: "Africa", AN: "Antarctica", AS: "Asia", EU: "Europe", NA: "North America", OC: "Oceania", SA: "South America",
+};
+
+export function countryLabel(code, name, lang = "zh") {
   const normalized = String(code || "").trim().toUpperCase();
-  if (COUNTRIES[normalized]) return COUNTRIES[normalized];
   const fromName = String(name || "").trim();
+  if (lang === "en") {
+    if (/^[A-Z]{2}$/.test(normalized)) {
+      try {
+        const label = new Intl.DisplayNames(["en"], { type: "region" }).of(normalized);
+        if (label && label.toUpperCase() !== normalized) return label;
+      } catch { /* very old runtimes */ }
+    }
+    if (fromName && fromName.length !== 2) return fromName;
+    return fromName || normalized || "Unknown";
+  }
+  if (COUNTRIES[normalized]) return COUNTRIES[normalized];
   if (fromName && COUNTRIES[fromName.toUpperCase()]) return COUNTRIES[fromName.toUpperCase()];
   if (fromName && fromName.length !== 2) return fromName;
   return fromName || normalized || "未知";
 }
 
-export function continentLabel(code) {
+export function continentLabel(code, lang = "zh") {
   if (!code) return null;
-  return CONTINENTS[String(code).trim().toUpperCase()] || String(code);
+  const key = String(code).trim().toUpperCase();
+  if (lang === "en") return CONTINENTS_EN[key] || String(code);
+  return CONTINENTS[key] || String(code);
 }

@@ -13,9 +13,25 @@ import {
   sha256Hex,
   summarize,
 } from "./logic/fp-core.js";
+import { GROUP_EN, SIGNAL_EN, VALUE_EN } from "./logic/fp-en.js";
+import { applyDom, bindLangToggle, getLang, L, onLang } from "./logic/i18n.js";
 
 const $ = (sel) => document.querySelector(sel);
-const STATUS_LABEL = { ok: "已取得", absent: "未提供", blocked: "被拦住", volatile: "易变" };
+function statusLabel(status) {
+  const zh = { ok: "已取得", absent: "未提供", blocked: "被拦住", volatile: "易变" };
+  const en = { ok: "read", absent: "not provided", blocked: "blocked", volatile: "volatile" };
+  return L(zh[status] || status, en[status] || status);
+}
+function signalName(row) {
+  return getLang() === "en" ? (SIGNAL_EN[row.id]?.name || row.name) : row.name;
+}
+function signalNote(row) {
+  return getLang() === "en" ? (SIGNAL_EN[row.id]?.note || row.note) : row.note;
+}
+function showValue(value) {
+  if (getLang() !== "en" || value == null) return value;
+  return VALUE_EN[value] || value;
+}
 const FONT_TEXT = "WwIi10 宽度Æ";
 const FONT_BASES = ["monospace", "sans-serif", "serif"];
 const FONT_CANDIDATES = [
@@ -955,19 +971,19 @@ function renderPortrait(paragraphs) {
   const more = $("#fpPortraitMore");
   more.hidden = paragraphs.length < 2;
   more.setAttribute("aria-expanded", "false");
-  more.textContent = "展开全文";
+  more.textContent = L("展开全文", "Show all");
 }
 
 function renderStats(summary) {
   const host = $("#fpStats");
   host.replaceChildren();
   const items = [
-    [summary.total, "项信号"],
-    [summary.counts.ok || 0, "已取得"],
-    [summary.counts.absent || 0, "未提供"],
-    [summary.counts.blocked || 0, "被拦住"],
-    [summary.counts.volatile || 0, "易变"],
-    [summary.bits, "估算 bit"],
+    [summary.total, L("项信号", "signals")],
+    [summary.counts.ok || 0, L("已取得", "read")],
+    [summary.counts.absent || 0, L("未提供", "not provided")],
+    [summary.counts.blocked || 0, L("被拦住", "blocked")],
+    [summary.counts.volatile || 0, L("易变", "volatile")],
+    [summary.bits, L("估算 bit", "estimated bits")],
   ];
   for (const [value, label] of items) {
     const card = document.createElement("div");
@@ -987,7 +1003,7 @@ function signalVisible(row) {
   if (state.changedOnly && !state.changes.some((change) => change.id === row.id)) return false;
   const query = state.query.trim().toLowerCase();
   if (!query) return true;
-  const blob = `${row.name} ${row.value} ${row.detail} ${row.note} ${groupName(row.group)} ${STATUS_LABEL[row.status] || ""}`.toLowerCase();
+  const blob = `${signalName(row)} ${row.name} ${showValue(row.value)} ${row.value} ${row.detail} ${signalNote(row)} ${row.note} ${groupName(row.group)} ${statusLabel(row.status)}`.toLowerCase();
   return blob.includes(query);
 }
 
@@ -1003,7 +1019,8 @@ function renderTabs() {
     const count = item.id === "all"
       ? state.signals.length
       : state.signals.filter((row) => row.group === item.id).length;
-    button.textContent = `${item.name} ${count}`;
+    const label = item.id === "all" ? L("全部", "All") : (getLang() === "en" ? (GROUP_EN[item.id]?.name || item.name) : item.name);
+    button.textContent = `${label} ${count}`;
     button.addEventListener("click", () => {
       state.group = item.id;
       renderTabs();
@@ -1030,9 +1047,10 @@ function renderList() {
     head.className = "fp-group-h";
     head.setAttribute("aria-expanded", open ? "true" : "false");
     const title = document.createElement("span");
-    title.textContent = group.name;
+    const groupEn = GROUP_EN[group.id];
+    title.textContent = getLang() === "en" && groupEn ? groupEn.name : group.name;
     const blurb = document.createElement("small");
-    blurb.textContent = group.blurb;
+    blurb.textContent = getLang() === "en" && groupEn ? groupEn.blurb : group.blurb;
     const count = document.createElement("b");
     count.className = "mono";
     count.textContent = String(rows.length);
@@ -1055,7 +1073,9 @@ function renderList() {
   if (!shown) {
     const empty = document.createElement("p");
     empty.className = "fp-empty";
-    empty.textContent = state.changedOnly ? "这一轮没有和上一轮不同的项。" : "没有符合筛选的信号。";
+    empty.textContent = state.changedOnly
+      ? L("这一轮没有和上一轮不同的项。", "Nothing changed from the previous run.")
+      : L("没有符合筛选的信号。", "No signals match the filter.");
     host.append(empty);
   }
   const filtering = state.group !== "all" || state.query.trim() || state.changedOnly;
@@ -1077,16 +1097,18 @@ function renderRow(row, change) {
   dot.setAttribute("aria-hidden", "true");
   const sr = document.createElement("span");
   sr.className = "fp-sr";
-  sr.textContent = STATUS_LABEL[row.status] || row.status;
+  sr.textContent = statusLabel(row.status);
   const name = document.createElement("span");
   name.className = "fp-name";
-  name.textContent = row.name;
+  name.textContent = signalName(row);
   const value = document.createElement("span");
   value.className = "fp-val mono";
-  value.textContent = clip(row.value || "—");
+  value.textContent = clip(showValue(row.value) || "—");
   const meter = document.createElement("span");
   meter.className = "fp-meter";
-  meter.title = row.status === "volatile" ? "易变，不进入指纹 ID" : `估算权重 ${row.bits} bit`;
+  meter.title = row.status === "volatile"
+    ? L("易变，不进入指纹 ID", "Volatile, not part of the fingerprint ID")
+    : L(`估算权重 ${row.bits} bit`, `Estimated weight ${row.bits} bit`);
   if (row.bits > 0) {
     const bar = document.createElement("i");
     bar.style.width = `${Math.max(8, Math.round((row.bits / 8) * 100))}%`;
@@ -1100,12 +1122,12 @@ function renderRow(row, change) {
   panel.hidden = !open;
   const note = document.createElement("p");
   note.className = "fp-note";
-  note.textContent = row.note;
+  note.textContent = signalNote(row);
   panel.append(note);
   if (row.value) {
     const full = document.createElement("p");
     full.className = "fp-full mono";
-    full.textContent = row.value;
+    full.textContent = showValue(row.value);
     panel.append(full);
   }
   if (row.detail && row.detail !== row.value) {
@@ -1168,9 +1190,9 @@ function syncTools() {
   const changed = $("#fpChanged");
   changed.disabled = !state.previous;
   changed.setAttribute("aria-pressed", state.changedOnly ? "true" : "false");
-  changed.textContent = state.changedOnly ? "显示全部" : "只看变化";
-  $("#fpExpand").textContent = state.detailsOpen ? "收起全部详情" : "展开全部详情";
-  $("#fpGroups").textContent = state.closedGroups.size ? "展开全部分组" : "收起全部分组";
+  changed.textContent = state.changedOnly ? L("显示全部", "Show all") : L("只看变化", "Changes only");
+  $("#fpExpand").textContent = state.detailsOpen ? L("收起全部详情", "Hide details") : L("展开全部详情", "Show all details");
+  $("#fpGroups").textContent = state.closedGroups.size ? L("展开全部分组", "Expand groups") : L("收起全部分组", "Collapse groups");
   $("#fpSearchClear").hidden = !state.query;
 }
 
@@ -1241,8 +1263,8 @@ async function run() {
     state.id = digest;
     state.changes = prior ? diffSignals(prior, signals) : [];
     if (!prior) state.changedOnly = false;
-    const summary = summarize(signals);
-    const paragraphs = buildPortrait(signals, connection, { id: digest, now: new Date() });
+    const summary = summarize(signals, getLang());
+    const paragraphs = buildPortrait(signals, connection, { id: digest, lang: getLang(), now: new Date() });
     renderPage(summary, paragraphs);
     const missing = missingSignalIds(signals);
     const tail = missing.length ? ` 有 ${missing.length} 项没有返回。` : "";
@@ -1357,4 +1379,12 @@ function bind() {
 }
 
 bind();
+applyDom(document);
+bindLangToggle();
+onLang(() => {
+  if (!state.signals.length) return;
+  const summary = summarize(state.signals, getLang());
+  const paragraphs = buildPortrait(state.signals, state.connection, { id: state.id, lang: getLang() });
+  renderPage(summary, paragraphs);
+});
 void run();

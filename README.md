@@ -78,6 +78,31 @@ ICMP 不走 ping.pe。那边的 ping 页面会连带对每个节点做 MTR，不
 
 不需要新的环境变量或密钥。
 
+### 双栈出口、DNS 泄漏、本机网站
+
+「你的网络体检」并排显示 IPv4 和 IPv6。打开页面时只使用这次请求自己的地址（`/api/whoami`，没有边缘数据时仍走原来的公开地理接口）。另一侧不会自动去问第三方：要点「探测另一侧出口」，页面才向 `ipv4.icanhazip.com` / `ipv6.icanhazip.com` 各取一行 IP，失败再问 `api-ipv4.ip.sb` / `api-ipv6.ip.sb`。界面上写明了这两家。拿到地址之后，归属地、ASN 和风险分仍走现有的 `lookupGeo` / `assessRisk`。`curl` 根路径和 `/json` 不变，仍然只返回当前这条连接的地址。没有自定义域名，所以还没有 `4.` / `6.` 主机名。
+
+「DNS 泄漏自查」放在 WebRTC 那一格旁边，默认不跑。点了之后，浏览器最多三次跟随 `https://edns.ip-api.com/json` 的一次性跳转，由 ip-api.com 的权威服务器回报是哪台解析器来问的。页面再用现有地理路径补上 ASN，并和当前出口比较。结果留在这一页，不上传。问失败会直接说失败，不编造成功。
+
+「本机常用网站连通」也是点了才从这台浏览器去请求每个站点的 `/favicon.ico`（`no-cors`）。列表是本站自己写的，和「国内外连通」不是一回事：那边仍然是 `/api/reach` 从公开节点看一个 IP。可以临时再加最多 4 个域名，只存在这一页的内存里。有的站点会拒绝这种探测，时间只适合互相比。
+
+### 主题、语言、联系
+
+顶栏有自动 / 浅色 / 深色，窄屏收成图标。选择存在 `localStorage` 键 `ip-ui-theme`（`auto` | `light` | `dark`），并写到 `data-theme`、`data-theme-mode` 和 `theme-color`。一段放在 `<head>` 里的脚本会在首屏绘制前应用，避免闪一下。浅色仍是原来的米黄纸底。深色是炭黑底、奶油色描边和硬阴影。
+
+语言按钮显示的是另一种语言（中文界面上是 EN）。选择存在 `ip-ui-lang`（`zh` | `en`），默认中文。首页、指纹页和联系页都跟着切换。
+
+`/contact` 和 wi.fs.kg 的联系页是同一条路径：先打开本机邮件，收件人 `i@wi.fs.kg`，主题前缀是 `[ip]`，用来和 WHOIS 站的信分开。页头写明这是 IP Lookup，信箱与 wi.fs.kg 相同。站内表单默认关着。配齐下面三个 Pages 环境变量之后，`GET /api/contact/config` 会返回 `ready: true`，页面才显示 Turnstile + 表单，并由 `POST /api/contact` 经 Resend 发到同一个信箱：
+
+| 变量 | 作用 |
+| --- | --- |
+| `TURNSTILE_SITE_KEY` | 公开站点密钥，会出现在 `/api/contact/config` |
+| `TURNSTILE_SECRET_KEY` | 服务端校验 Turnstile |
+| `RESEND_API_KEY` | Resend 发信 |
+| `CONTACT_FROM` | 可选。发件人，例如 `IP Lookup <i@wi.fs.kg>`。不设时用 `IP Lookup <onboarding@resend.dev>`，沙箱地址通常只能发给 Resend 账号自己的邮箱，所以要真正送到 `i@wi.fs.kg` 需要一个已验证的发件人 |
+
+没配这些变量时，mailto 就是完整的联系方式，其它功能不受影响。表单还有一个空着的蜜罐字段，以及每个 IP 大约每分钟 5 次的内存限额（按隔离实例计算，不是全站共享的精确配额）。
+
 ### 其他本地功能
 
 - 子网 / CIDR 计算器：IPv4 与 IPv6。不写前缀时按 `/32` 或 `/128`。`/31` 按 RFC 3021。IPv6 的大地址总数写成 `2^n`
@@ -146,7 +171,7 @@ Windows PowerShell 里的 `curl` 常常是 `Invoke-WebRequest` 的别名。请�
 和公开参考站仍有的差别：
 
 - 站名是 IP Lookup，不用对方的域名，也不用 F.S. 这套品牌词
-- 没有英文版、联系页和 OpenAPI 文档页
+- 有中英切换和联系页。联系页走和 wi.fs.kg 相同的邮箱，主题前缀是 `[ip]`
 - 没有访问统计信标
 - 风险分的四档和配色对齐，具体加分仍是本仓库自己的关键词和少量 ASN，不会逐条复刻别人的内部规则
 
@@ -208,6 +233,9 @@ npx wrangler pages deploy public --project-name ip-lookup
 ```text
 public/                 页面、样式和浏览器里的查询逻辑
 public/fingerprint.html 本地浏览器指纹页
+public/contact.html     联系页，mailto 优先，表单等 Turnstile / Resend
+functions/api/contact.js
+functions/api/contact/config.js
 public/assets/fingerprint.js
 public/assets/logic/fp-core.js  指纹 ID、估算和请求头对照（无 DOM）
 functions/index.js      根路径：CLI 返回 IP，浏览器返回 HTML

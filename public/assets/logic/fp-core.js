@@ -152,42 +152,58 @@ export function entropyBits(signals) {
   return Math.round(total * 10) / 10;
 }
 
-export function collisionText(bits) {
+export function collisionText(bits, lang = "zh") {
+  const en = lang === "en";
   const value = Number(bits);
   if (!Number.isFinite(value) || value <= 1) {
-    return "本地估算：这些信号几乎分不开常见设备。不是实测访客比例。";
+    return en
+      ? "Local estimate: these signals barely separate ordinary devices. Not a measured visitor rate."
+      : "本地估算：这些信号几乎分不开常见设备。不是实测访客比例。";
   }
   const denom = 2 ** value;
   if (denom < 1000) {
     const n = Math.max(2, Math.round(denom));
-    return `本地估算：大约每 ${n} 份组合里有 1 份相同。不是实测访客比例。`;
+    return en
+      ? `Local estimate: about 1 in ${n} combinations match. Not a measured visitor rate.`
+      : `本地估算：大约每 ${n} 份组合里有 1 份相同。不是实测访客比例。`;
   }
   const exp = Math.floor(Math.log10(denom));
   const mant = denom / 10 ** exp;
   const shown = mant >= 10 ? mant.toFixed(0) : mant.toFixed(1);
-  return `本地估算：大约 1 / ${shown}×10^${exp}。不是实测访客比例。`;
+  return en
+    ? `Local estimate: about 1 / ${shown}×10^${exp}. Not a measured visitor rate.`
+    : `本地估算：大约 1 / ${shown}×10^${exp}。不是实测访客比例。`;
 }
 
-export function estimateUniqueness(bits) {
+export function estimateUniqueness(bits, lang = "zh") {
+  const en = lang === "en";
   let title;
   let detail;
   if (bits < 12) {
-    title = "估算：很常见";
-    detail = "按本地权重加总，这组信号在常见环境里会大量重复。";
+    title = en ? "Estimate: very common" : "估算：很常见";
+    detail = en
+      ? "Added up with the local weights, this set repeats a lot in ordinary environments."
+      : "按本地权重加总，这组信号在常见环境里会大量重复。";
   } else if (bits < 22) {
-    title = "估算：有点区别";
-    detail = "能把范围缩小一些，离「只有一台设备」还很远。";
+    title = en ? "Estimate: somewhat distinct" : "估算：有点区别";
+    detail = en
+      ? "It narrows the field a little. It is nowhere near “only one device”."
+      : "能把范围缩小一些，离「只有一台设备」还很远。";
   } else if (bits < 32) {
-    title = "估算：比较少见";
-    detail = "渲染和字体测量占了大头。真实人群里很多项会一起出现，实际没这么稀有。";
+    title = en ? "Estimate: fairly uncommon" : "估算：比较少见";
+    detail = en
+      ? "Rendering and font measurements dominate. In a real crowd many of these show up together, so it is less rare than it looks."
+      : "渲染和字体测量占了大头。真实人群里很多项会一起出现，实际没这么稀有。";
   } else {
-    title = "估算：看起来很稀有";
-    detail = "这是把各项当成互不相关之后的乐观上界。本站没有访客统计。";
+    title = en ? "Estimate: looks rare" : "估算：看起来很稀有";
+    detail = en
+      ? "This is an optimistic ceiling that treats every signal as independent. This site has no visitor statistics."
+      : "这是把各项当成互不相关之后的乐观上界。本站没有访客统计。";
   }
-  return { title, detail, collision: collisionText(bits) };
+  return { title, detail, collision: collisionText(bits, lang) };
 }
 
-export function summarize(signals) {
+export function summarize(signals, lang = "zh") {
   const counts = { ok: 0, absent: 0, blocked: 0, volatile: 0 };
   const rows = dedupeSignals(signals);
   for (const row of rows) {
@@ -195,7 +211,7 @@ export function summarize(signals) {
     counts[row.status] += 1;
   }
   const bits = entropyBits(rows);
-  return { counts, bits, uniqueness: estimateUniqueness(bits), total: rows.length };
+  return { counts, bits, uniqueness: estimateUniqueness(bits, lang), total: rows.length };
 }
 
 export function diffSignals(previous, next) {
@@ -432,12 +448,40 @@ const LANG_SPOKEN = {
   uk: "乌克兰文",
 };
 
+const LANG_SPOKEN_EN = {
+  zh: "Chinese",
+  en: "English",
+  ja: "Japanese",
+  ko: "Korean",
+  fr: "French",
+  de: "German",
+  es: "Spanish",
+  ru: "Russian",
+  pt: "Portuguese",
+  it: "Italian",
+  vi: "Vietnamese",
+  th: "Thai",
+  id: "Indonesian",
+  ar: "Arabic",
+  hi: "Hindi",
+  tr: "Turkish",
+  nl: "Dutch",
+  pl: "Polish",
+  uk: "Ukrainian",
+};
+
 const ORG_ALIASES = [
-  [/chinanet|china telecom/i, "中国电信"],
-  [/china unicom/i, "中国联通"],
-  [/china mobile|\bcmcc\b/i, "中国移动"],
-  [/cernet/i, "教育网"],
+  [/chinanet|china telecom/i, "中国电信", "China Telecom"],
+  [/china unicom/i, "中国联通", "China Unicom"],
+  [/china mobile|\bcmcc\b/i, "中国移动", "China Mobile"],
+  [/cernet/i, "教育网", "CERNET"],
 ];
+
+let speechLang = "zh";
+
+function say(zh, en) {
+  return speechLang === "en" ? en : zh;
+}
 
 function readValue(byId, id) {
   return usable(byId.get(id));
@@ -453,9 +497,9 @@ function langSpoken(tag) {
   const [language, region, script] = norm.split("-");
   if (language === "zh") {
     const traditional = region === "TW" || region === "HK" || region === "MO" || region === "hant" || script === "hant";
-    return { name: traditional ? "繁体中文" : "中文", family: "zh" };
+    return { name: traditional ? say("繁体中文", "Traditional Chinese") : say("中文", "Chinese"), family: "zh" };
   }
-  const name = LANG_SPOKEN[language] || "";
+  const name = say(LANG_SPOKEN[language] || "", LANG_SPOKEN_EN[language] || "");
   return { name, family: language };
 }
 
@@ -466,12 +510,12 @@ function languageSpeech(byId) {
   const primary = readValue(byId, "lang");
   const list = readValue(byId, "langs");
   const tags = (list || primary).split(",").map((part) => part.trim()).filter(Boolean);
-  if (!primary && !tags.length) return "浏览器没给出语言。";
+  if (!primary && !tags.length) return say("浏览器没给出语言。", "The browser did not give a language.");
   const main = primary || tags[0];
   const spoken = langSpoken(main);
   const sentences = [];
-  if (spoken.name) sentences.push(`浏览器把语言设成了${spoken.name}，写的是 ${main}。`);
-  else sentences.push(`浏览器把首选语言设成了 ${main}。`);
+  if (spoken.name) sentences.push(say(`浏览器把语言设成了${spoken.name}，写的是 ${main}。`, `The browser language is ${spoken.name}, written as ${main}.`));
+  else sentences.push(say(`浏览器把首选语言设成了 ${main}。`, `The browser’s preferred language is ${main}.`));
   const extras = [];
   const seen = new Set([spoken.family || main]);
   for (const tag of tags.slice(primary ? 0 : 1)) {
@@ -482,18 +526,30 @@ function languageSpeech(byId) {
     seen.add(key);
     extras.push(item.name);
   }
-  if (extras.length) sentences.push(`后面还排了${extras.join("、")}。`);
+  if (extras.length) {
+    const joined = extras.join(say("、", ", "));
+    sentences.push(say(`后面还排了${joined}。`, `After that: ${joined}.`));
+  }
   return sentenceJoin(sentences);
 }
 
 function timezoneSpeech(tz) {
   if (tz === "Asia/Shanghai") {
-    return "系统时区用的是 Asia/Shanghai。全国都共用这一个名字，所以它不能说明你人在上海。";
+    return say(
+      "系统时区用的是 Asia/Shanghai。全国都共用这一个名字，所以它不能说明你人在上海。",
+      "The system time zone is Asia/Shanghai. The whole country shares that name, so it does not put you in Shanghai.",
+    );
   }
   if (tz === "Asia/Urumqi") {
-    return "系统时区用的是 Asia/Urumqi。这是新疆那边用的时区名，换了出口也不等于人就坐在某一张桌子前。";
+    return say(
+      "系统时区用的是 Asia/Urumqi。这是新疆那边用的时区名，换了出口也不等于人就坐在某一张桌子前。",
+      "The system time zone is Asia/Urumqi. That name is used in Xinjiang. A different exit still does not put a person at one desk.",
+    );
   }
-  return `系统时区设的是 ${tz}。这是电脑里的设置，换了出口 IP 也不一定会跟着变。`;
+  return say(
+    `系统时区设的是 ${tz}。这是电脑里的设置，换了出口 IP 也不一定会跟着变。`,
+    `The system time zone is ${tz}. That is a setting on the computer. It does not have to follow a new exit IP.`,
+  );
 }
 
 function offsetSpeech(text) {
@@ -501,10 +557,22 @@ function offsetSpeech(text) {
   if (!match) return "";
   const hours = Number(match[2]);
   const mins = Number(match[3]);
-  if (hours === 0 && mins === 0) return "现在和世界时是对齐的，没有额外时差。";
-  const dir = match[1] === "-" ? "慢" : "快";
-  if (mins === 0) return `现在比世界时${dir} ${hours} 小时。`;
-  return `现在比世界时${dir} ${hours} 小时 ${mins} 分。`;
+  if (hours === 0 && mins === 0) {
+    return say("现在和世界时是对齐的，没有额外时差。", "The clock matches UTC. There is no extra offset.");
+  }
+  const behind = match[1] === "-";
+  if (mins === 0) {
+    return say(
+      `现在比世界时${behind ? "慢" : "快"} ${hours} 小时。`,
+      behind ? `The clock is ${hours} hour${hours === 1 ? "" : "s"} behind UTC.` : `The clock is ${hours} hour${hours === 1 ? "" : "s"} ahead of UTC.`,
+    );
+  }
+  return say(
+    `现在比世界时${behind ? "慢" : "快"} ${hours} 小时 ${mins} 分。`,
+    behind
+      ? `The clock is ${hours} hour${hours === 1 ? "" : "s"} ${mins} minutes behind UTC.`
+      : `The clock is ${hours} hour${hours === 1 ? "" : "s"} ${mins} minutes ahead of UTC.`,
+  );
 }
 
 function localeSpeech(byId) {
@@ -514,8 +582,8 @@ function localeSpeech(byId) {
   const tzRow = byId.get("tz");
   const tz = readValue(byId, "tz");
   if (tz) sentences.push(timezoneSpeech(tz));
-  else if (tzRow?.status === "blocked") sentences.push("系统时区被拦住了，没读到。");
-  else if (tzRow?.status === "absent") sentences.push("系统时区没读到。");
+  else if (tzRow?.status === "blocked") sentences.push(say("系统时区被拦住了，没读到。", "The system time zone was blocked, so it was not read."));
+  else if (tzRow?.status === "absent") sentences.push(say("系统时区没读到。", "The system time zone was not read."));
   const offset = offsetSpeech(readValue(byId, "tz-offset"));
   if (offset) sentences.push(offset);
   return sentenceJoin(sentences);
@@ -523,7 +591,7 @@ function localeSpeech(byId) {
 
 function zoneClock(date, timeZone) {
   try {
-    const parts = new Intl.DateTimeFormat("zh-CN", {
+    const parts = new Intl.DateTimeFormat(speechLang === "en" ? "en-US" : "zh-CN", {
       timeZone,
       weekday: "short",
       hour: "2-digit",
@@ -544,13 +612,18 @@ function zoneClock(date, timeZone) {
 function countrySpoken(connection) {
   const code = connection?.country || connection?.country_code || "";
   if (!code) return "";
-  const label = countryLabel(code, connection.country);
-  if (!label || label === "未知") return "";
+  const label = countryLabel(code, connection.country, speechLang === "en" ? "en" : "zh");
+  if (!label || label === "未知" || label === "Unknown") return "";
   return label;
 }
 
 function geoSpeech(byId, connection, now) {
-  if (!connection) return "出口位置这一轮没读到。就算读到，那也是路由器，不是你的书桌。";
+  if (!connection) {
+    return say(
+      "出口位置这一轮没读到。就算读到，那也是路由器，不是你的书桌。",
+      "This round did not read an exit location. Even when it does, that is the router, not the desk.",
+    );
+  }
   const city = connection.city ? String(connection.city).trim() : "";
   const country = countrySpoken(connection);
   const colo = connection.colo ? String(connection.colo).trim() : "";
@@ -558,16 +631,26 @@ function geoSpeech(byId, connection, now) {
   const pageTz = readValue(byId, "tz");
   const sentences = [];
   if (city || country) {
-    sentences.push(`IP 把这一跳放在 ${[city, country].filter(Boolean).join("，")}。`);
-    sentences.push("那是出口路由器的位置，不是你书桌的位置。");
+    const place = [city, country].filter(Boolean).join(say("，", ", "));
+    sentences.push(say(`IP 把这一跳放在 ${place}。`, `The IP puts this hop in ${place}.`));
+    sentences.push(say("那是出口路由器的位置，不是你书桌的位置。", "That is the exit router, not the desk."));
     const zone = edgeTz || pageTz;
     const clock = zone ? zoneClock(now, zone) : "";
-    if (clock) sentences.push(edgeTz ? `出口那边现在大概是${clock}。` : `你电脑上现在大概是${clock}。`);
+    if (clock) {
+      sentences.push(edgeTz
+        ? say(`出口那边现在大概是${clock}。`, `The clock on the exit side is about ${clock}.`)
+        : say(`你电脑上现在大概是${clock}。`, `The clock on this computer is about ${clock}.`));
+    }
   } else {
-    sentences.push("出口城市没给，所以这里不写你在哪。");
+    sentences.push(say("出口城市没给，所以这里不写你在哪。", "No exit city was given, so this does not say where you are."));
   }
-  if (colo) sentences.push(`进来的机房代号是 ${colo}。那只是服务器落点，不是你的城市。`);
-  if (!city && !country) sentences.push("出口本来也只代表路由器，不是书桌。");
+  if (colo) {
+    sentences.push(say(
+      `进来的机房代号是 ${colo}。那只是服务器落点，不是你的城市。`,
+      `The colo code on the way in is ${colo}. That is where the server is, not your city.`,
+    ));
+  }
+  if (!city && !country) sentences.push(say("出口本来也只代表路由器，不是书桌。", "An exit only ever stands for a router, not a desk."));
   return sentenceJoin(sentences);
 }
 
@@ -598,31 +681,35 @@ function osSentence(byId) {
   if (os === "Windows") {
     const fromHint = versionTriplet(hintedVersion);
     if (fromHint && !(fromHint.major === 0 && fromHint.minor === 0)) {
-      if (fromHint.major >= 13) return "系统是 Windows 11";
-      if (fromHint.major >= 1) return "系统是 Windows 10";
-      if (fromHint.major === 0 && fromHint.minor >= 3) return "系统是 Windows 8.1";
-      if (fromHint.major === 0 && fromHint.minor === 2) return "系统是 Windows 8";
-      return "系统是 Windows 7";
+      if (fromHint.major >= 13) return say("系统是 Windows 11", "The system is Windows 11");
+      if (fromHint.major >= 1) return say("系统是 Windows 10", "The system is Windows 10");
+      if (fromHint.major === 0 && fromHint.minor >= 3) return say("系统是 Windows 8.1", "The system is Windows 8.1");
+      if (fromHint.major === 0 && fromHint.minor === 2) return say("系统是 Windows 8", "The system is Windows 8");
+      return say("系统是 Windows 7", "The system is Windows 7");
     }
-    if (/Windows NT 10\.0/.test(ua)) return "系统是 Windows 10 或 11";
-    if (/Windows NT 6\.3/.test(ua)) return "系统是 Windows 8.1";
-    if (/Windows NT 6\.2/.test(ua)) return "系统是 Windows 8";
-    if (/Windows NT 6\.1/.test(ua)) return "系统是 Windows 7";
-    return "系统是 Windows";
+    if (/Windows NT 10\.0/.test(ua)) return say("系统是 Windows 10 或 11", "The system is Windows 10 or 11");
+    if (/Windows NT 6\.3/.test(ua)) return say("系统是 Windows 8.1", "The system is Windows 8.1");
+    if (/Windows NT 6\.2/.test(ua)) return say("系统是 Windows 8", "The system is Windows 8");
+    if (/Windows NT 6\.1/.test(ua)) return say("系统是 Windows 7", "The system is Windows 7");
+    return say("系统是 Windows", "The system is Windows");
   }
   if (os === "macOS") {
     const version = versionTriplet(hintedVersion) || versionTriplet(ua.match(/Mac OS X ([\d_]+)/)?.[1]?.replace(/_/g, "."));
-    return version ? `系统是 macOS ${version.raw}` : "系统是 macOS";
+    return version
+      ? say(`系统是 macOS ${version.raw}`, `The system is macOS ${version.raw}`)
+      : say("系统是 macOS", "The system is macOS");
   }
   if (os === "Android") {
     const version = versionTriplet(hintedVersion) || versionTriplet(ua.match(/Android ([\d.]+)/)?.[1]);
-    return version ? `系统是 Android ${version.raw}` : "系统是 Android";
+    return version
+      ? say(`系统是 Android ${version.raw}`, `The system is Android ${version.raw}`)
+      : say("系统是 Android", "The system is Android");
   }
-  if (os === "iOS") return "系统是 iOS";
-  if (os === "ChromeOS") return "系统是 ChromeOS";
-  if (os === "Linux" && !hinted && navPlatform) return `浏览器报的平台是 ${navPlatform}`;
-  if (os === "Linux") return "系统是 Linux";
-  if (navPlatform) return `浏览器报的平台是 ${navPlatform}`;
+  if (os === "iOS") return say("系统是 iOS", "The system is iOS");
+  if (os === "ChromeOS") return say("系统是 ChromeOS", "The system is ChromeOS");
+  if (os === "Linux" && !hinted && navPlatform) return say(`浏览器报的平台是 ${navPlatform}`, `The browser reports the platform as ${navPlatform}`);
+  if (os === "Linux") return say("系统是 Linux", "The system is Linux");
+  if (navPlatform) return say(`浏览器报的平台是 ${navPlatform}`, `The browser reports the platform as ${navPlatform}`);
   return "";
 }
 
@@ -664,13 +751,15 @@ function browserSentence(byId) {
     if (/^\d+\.\d+/.test(head)) version = head;
   }
   if (!spoken) return "";
-  return version ? `浏览器是 ${spoken}，版本 ${version}` : `浏览器是 ${spoken}`;
+  return version
+    ? say(`浏览器是 ${spoken}，版本 ${version}`, `the browser is ${spoken}, version ${version}`)
+    : say(`浏览器是 ${spoken}`, `the browser is ${spoken}`);
 }
 
 function dprClause(value) {
   const n = Number.parseFloat(value);
-  if (n === 1) return "像素比是 1 倍";
-  return `像素比是 ${value}`;
+  if (n === 1) return say("像素比是 1 倍", "the pixel ratio is 1×");
+  return say(`像素比是 ${value}`, `the pixel ratio is ${value}`);
 }
 
 function deviceParagraphs(byId) {
@@ -678,51 +767,62 @@ function deviceParagraphs(byId) {
   const tail = [];
   const os = osSentence(byId);
   const browser = browserSentence(byId);
-  if (os && browser) lead.push(`${os}，${browser}。`);
-  else if (os) lead.push(`${os}。`);
-  else if (browser) lead.push(`${browser}。`);
+  if (os && browser) lead.push(say(`${os}，${browser}。`, `${os}, and ${browser}.`));
+  else if (os) lead.push(say(`${os}。`, `${os}.`));
+  else if (browser) lead.push(say(`${browser}。`, `${browser[0].toUpperCase()}${browser.slice(1)}.`));
 
   const screenBits = [];
   const screen = readValue(byId, "screen");
   const dpr = readValue(byId, "dpr");
-  if (screen) screenBits.push(`屏幕是 ${screen}`);
+  if (screen) screenBits.push(say(`屏幕是 ${screen}`, `the screen is ${screen}`));
   if (dpr) screenBits.push(dprClause(dpr));
-  if (screenBits.length) lead.push(`${screenBits.join("，")}。`);
+  if (screenBits.length) {
+    const joined = screenBits.join(say("，", ", "));
+    lead.push(say(`${joined}。`, `${joined[0].toUpperCase()}${joined.slice(1)}.`));
+  }
 
   const arch = readValue(byId, "ua-arch");
   const archMatch = arch.match(/^([A-Za-z0-9]+)\s*\/\s*(\d+)/);
-  if (archMatch) lead.push(`芯片架构是 ${archMatch[1]}，${archMatch[2]} 位。`);
-  else if (arch) lead.push(`架构报的是 ${arch}。`);
+  if (archMatch) lead.push(say(`芯片架构是 ${archMatch[1]}，${archMatch[2]} 位。`, `The architecture is ${archMatch[1]}, ${archMatch[2]}-bit.`));
+  else if (arch) lead.push(say(`架构报的是 ${arch}。`, `The architecture reading is ${arch}.`));
 
   const form = readValue(byId, "ua-form");
-  const formName = { desktop: "桌面设备", mobile: "手机", tablet: "平板" }[form.toLowerCase()];
-  if (formName) lead.push(`它把自己说成${formName}。`);
-  else if (form) lead.push(`设备形态报的是 ${form}。`);
+  const formName = speechLang === "en"
+    ? { desktop: "a desktop", mobile: "a phone", tablet: "a tablet" }[form.toLowerCase()]
+    : { desktop: "桌面设备", mobile: "手机", tablet: "平板" }[form.toLowerCase()];
+  if (formName) lead.push(say(`它把自己说成${formName}。`, `It describes itself as ${formName}.`));
+  else if (form) lead.push(say(`设备形态报的是 ${form}。`, `The form factor reading is ${form}.`));
 
   const gpu = readValue(byId, "webgl-renderer");
-  if (gpu) tail.push(`显卡报的是 ${gpu}。`);
+  if (gpu) tail.push(say(`显卡报的是 ${gpu}。`, `The graphics adapter reads as ${gpu}.`));
 
   const cores = readValue(byId, "cores");
   const memory = readValue(byId, "memory");
-  if (cores && memory) tail.push(`逻辑核心 ${cores} 个，内存只给了个粗档，${memory}，不是拆机量出来的。`);
-  else if (cores) tail.push(`逻辑核心 ${cores} 个。`);
-  else if (memory) tail.push(`内存只给了个粗档，${memory}，不是拆机量出来的。`);
+  if (cores && memory) {
+    tail.push(say(
+      `逻辑核心 ${cores} 个，内存只给了个粗档，${memory}，不是拆机量出来的。`,
+      `${cores} logical cores. Memory is only a coarse bucket, ${memory}, not a teardown measurement.`,
+    ));
+  } else if (cores) tail.push(say(`逻辑核心 ${cores} 个。`, `${cores} logical cores.`));
+  else if (memory) tail.push(say(`内存只给了个粗档，${memory}，不是拆机量出来的。`, `Memory is only a coarse bucket, ${memory}, not a teardown measurement.`));
 
   const touch = readValue(byId, "touch");
   if (touch) {
     const count = Number(touch);
-    tail.push(count === 0 ? "触控点报了 0。" : `最多能记 ${touch} 个触控点。`);
+    tail.push(count === 0
+      ? say("触控点报了 0。", "Touch points read as 0.")
+      : say(`最多能记 ${touch} 个触控点。`, `It can report up to ${touch} touch points.`));
   }
   const mobile = readValue(byId, "ua-mobile");
-  if (mobile === "是") tail.push("浏览器把自己标成了手机。");
+  if (mobile === "是") tail.push(say("浏览器把自己标成了手机。", "The browser marks itself as a phone."));
   return [sentenceJoin(lead), sentenceJoin(tail)].filter(Boolean);
 }
 
 function speakOrg(org) {
   const text = String(org || "").trim();
   if (!text) return "";
-  for (const [pattern, name] of ORG_ALIASES) {
-    if (pattern.test(text)) return name;
+  for (const [pattern, zh, en] of ORG_ALIASES) {
+    if (pattern.test(text)) return say(zh, en);
   }
   return text;
 }
@@ -735,16 +835,36 @@ function ispSpeech(connection) {
   if (!org && !asn) return "";
   const spoken = speakOrg(org);
   let line = "";
-  if (spoken && asn) line = `出口是${spoken}，编号 ${asn}。`;
-  else if (spoken) line = `出口运营商写的是${spoken}。`;
-  else line = `出口编号是 ${asn}，运营商名字没给。`;
+  if (spoken && asn) line = say(`出口是${spoken}，编号 ${asn}。`, `The exit is ${spoken}, number ${asn}.`);
+  else if (spoken) line = say(`出口运营商写的是${spoken}。`, `The exit operator is written as ${spoken}.`);
+  else line = say(`出口编号是 ${asn}，运营商名字没给。`, `The exit number is ${asn}. The operator name was not given.`);
   const risk = assessRisk({ org, isp: connection.isp, asn: connection.asn });
   const hinted = (risk.reasons || []).some((reason) => /名称命中|ASN \d+ 是/.test(reason));
   if (!hinted) return line;
-  if (risk.tier === "home") return `${line}从名字看，更像家里或公司的宽带，只是名字像，没有实测线路。`;
-  if (risk.tier === "cloud") return `${line}从名字看，更像云厂商或托管，只是名字像，没有实锤。`;
-  if (risk.tier === "proxy") return `${line}从名字看，有点像代理或 VPN 的出口，只是名字像，没有实锤。`;
-  if (risk.tier === "transit") return `${line}从名字看，更像骨干或中转网络，只是名字像，没有实锤。`;
+  if (risk.tier === "home") {
+    return say(
+      `${line}从名字看，更像家里或公司的宽带，只是名字像，没有实测线路。`,
+      `${line} The name looks more like a home or office broadband line. That is only the name, not a measured path.`,
+    );
+  }
+  if (risk.tier === "cloud") {
+    return say(
+      `${line}从名字看，更像云厂商或托管，只是名字像，没有实锤。`,
+      `${line} The name looks more like a cloud provider or host. That is only the name, not proof.`,
+    );
+  }
+  if (risk.tier === "proxy") {
+    return say(
+      `${line}从名字看，有点像代理或 VPN 的出口，只是名字像，没有实锤。`,
+      `${line} The name looks a bit like a proxy or VPN exit. That is only the name, not proof.`,
+    );
+  }
+  if (risk.tier === "transit") {
+    return say(
+      `${line}从名字看，更像骨干或中转网络，只是名字像，没有实锤。`,
+      `${line} The name looks more like a backbone or transit network. That is only the name, not proof.`,
+    );
+  }
   return line;
 }
 
@@ -759,48 +879,53 @@ function consistencySpeech(byId, connection) {
   const ua = byId.get("ua-header");
   const receiptMissing = missingReceipt(lang) && missingReceipt(ua);
   if (!receiptMissing && lang && lang.status !== "blocked" && lang.value) {
-    if (lang.value === LANG_LABEL.exact || lang.value === LANG_LABEL.prefix) good.push("请求头和页面上的语言是同一套");
-    else if (lang.value === LANG_LABEL.reordered) bad.push("语言标签一样，但请求头和页面的顺序不一样");
-    else if (lang.value === LANG_LABEL.mismatch) bad.push("请求头里的语言和页面读到的对不上");
-    else if (lang.status === "absent") bad.push("语言请求头没对上，一边没有读数");
-  } else if (!receiptMissing && lang?.status === "blocked") bad.push("语言对照这次被拦住了");
+    if (lang.value === LANG_LABEL.exact || lang.value === LANG_LABEL.prefix) good.push(say("请求头和页面上的语言是同一套", "the request header and the page use the same language"));
+    else if (lang.value === LANG_LABEL.reordered) bad.push(say("语言标签一样，但请求头和页面的顺序不一样", "the language tags match, but the header and the page order them differently"));
+    else if (lang.value === LANG_LABEL.mismatch) bad.push(say("请求头里的语言和页面读到的对不上", "the language in the request header does not match the page"));
+    else if (lang.status === "absent") bad.push(say("语言请求头没对上，一边没有读数", "the language header could not be compared because one side had no reading"));
+  } else if (!receiptMissing && lang?.status === "blocked") bad.push(say("语言对照这次被拦住了", "the language comparison was blocked this time"));
 
   if (!receiptMissing && ua && ua.status !== "blocked" && ua.value) {
-    if (ua.value === "和页面里的品牌一致") good.push("浏览器品牌也一致");
-    else if (ua.value === "和页面里的品牌不一致") bad.push("请求头里的浏览器品牌和页面读到的不一致");
-    else if (ua.value === "请求里没有 Sec-CH-UA" || ua.status === "absent") bad.push("请求里没带浏览器品牌，所以没法对");
-    else if (ua.value === "请求头没能解析成品牌列表") bad.push("请求头里的浏览器品牌没能拆开，对不上");
-  } else if (!receiptMissing && ua?.status === "blocked") bad.push("浏览器品牌对照没做成");
+    if (ua.value === "和页面里的品牌一致") good.push(say("浏览器品牌也一致", "the browser brands also match"));
+    else if (ua.value === "和页面里的品牌不一致") bad.push(say("请求头里的浏览器品牌和页面读到的不一致", "the browser brands in the request header do not match the page"));
+    else if (ua.value === "请求里没有 Sec-CH-UA" || ua.status === "absent") bad.push(say("请求里没带浏览器品牌，所以没法对", "the request did not carry browser brands, so they could not be compared"));
+    else if (ua.value === "请求头没能解析成品牌列表") bad.push(say("请求头里的浏览器品牌没能拆开，对不上", "the browser brands in the header did not parse, so they could not be compared"));
+  } else if (!receiptMissing && ua?.status === "blocked") bad.push(say("浏览器品牌对照没做成", "the browser-brand comparison did not complete"));
 
   const pageTz = readValue(byId, "tz");
   const edgeTz = connection?.timezone ? String(connection.timezone) : "";
   if (pageTz && edgeTz) {
-    if (edgeTz === pageTz) good.push(`连接回执里的时区也是 ${edgeTz}`);
-    else bad.push(`时区对不上，电脑是 ${pageTz}，连接回执是 ${edgeTz}`);
-  } else if (!pageTz && edgeTz) good.push(`连接回执里的时区是 ${edgeTz}`);
+    if (edgeTz === pageTz) good.push(say(`连接回执里的时区也是 ${edgeTz}`, `the connection receipt also says ${edgeTz}`));
+    else bad.push(say(`时区对不上，电脑是 ${pageTz}，连接回执是 ${edgeTz}`, `the time zones disagree: the computer says ${pageTz}, the connection receipt says ${edgeTz}`));
+  } else if (!pageTz && edgeTz) good.push(say(`连接回执里的时区是 ${edgeTz}`, `the connection receipt says ${edgeTz}`));
 
   if (!good.length && !bad.length) return "";
-  if (!bad.length) return `${good.join("，")}。`;
-  if (!good.length) return `有对不上的地方。${bad.join("。")}。`;
-  return `有对不上的地方。${bad.join("。")}。另外，${good.join("，")}。`;
+  const cap = (text) => text ? text.charAt(0).toUpperCase() + text.slice(1) : text;
+  if (!bad.length) return say(`${good.join("，")}。`, `${cap(good.join(", "))}.`);
+  if (!good.length) return say(`有对不上的地方。${bad.join("。")}。`, `Something does not line up. ${cap(bad.join(". "))}.`);
+  return say(
+    `有对不上的地方。${bad.join("。")}。另外，${good.join("，")}。`,
+    `Something does not line up. ${cap(bad.join(". "))}. Also, ${good.join(", ")}.`,
+  );
 }
 
 function listClause(items, single, many) {
   if (!items.length) return "";
   if (items.length === 1) return single(items[0]);
-  return many(items.join("、"));
+  return many(items.join(say("、", ", ")));
 }
 
 function renderSpeech(byId) {
   const items = [
-    ["canvas", "画布"],
-    ["webgl-renderer", "显卡"],
-    ["audio", "离线音频"],
-    ["fonts", "字体"],
+    ["canvas", say("画布", "Canvas")],
+    ["webgl-renderer", say("显卡", "GPU")],
+    ["audio", say("离线音频", "offline audio")],
+    ["fonts", say("字体", "fonts")],
   ];
   const got = [];
   const blocked = [];
   const absent = [];
+  let gpuAbsent = false;
   let saw = false;
   for (const [id, label] of items) {
     const row = byId.get(id);
@@ -808,20 +933,39 @@ function renderSpeech(byId) {
     saw = true;
     if (row.status === "ok" || row.status === "volatile") got.push(label);
     else if (row.status === "blocked") blocked.push(label);
-    else absent.push(label);
+    else {
+      absent.push(label);
+      if (id === "webgl-renderer") gpuAbsent = true;
+    }
   }
   if (!saw) return "";
+  const cap = (text) => text ? text.charAt(0).toUpperCase() + text.slice(1) : text;
   const sentences = [];
-  const gotLine = listClause(got, (name) => `${name}读到了。`, (names) => `${names}都读到了。`);
+  const gotLine = listClause(
+    got,
+    (name) => say(`${name}读到了。`, `${cap(name)} was read.`),
+    (names) => say(`${names}都读到了。`, `${cap(names)} were all read.`),
+  );
   if (gotLine) sentences.push(gotLine);
-  if (absent.includes("显卡")) sentences.push("没有拿到 WebGL 渲染器。");
-  const restAbsent = absent.filter((label) => label !== "显卡");
-  const absentLine = listClause(restAbsent, (name) => `${name}没读到。`, (names) => `${names}没读到。`);
+  if (gpuAbsent) sentences.push(say("没有拿到 WebGL 渲染器。", "The WebGL renderer was not obtained."));
+  const restAbsent = gpuAbsent ? absent.filter((label) => label !== say("显卡", "GPU")) : absent;
+  const absentLine = listClause(
+    restAbsent,
+    (name) => say(`${name}没读到。`, `${cap(name)} was not read.`),
+    (names) => say(`${names}没读到。`, `${cap(names)} were not read.`),
+  );
   if (absentLine) sentences.push(absentLine);
-  const blockedLine = listClause(blocked, (name) => `${name}被拦住了。`, (names) => `${names}被拦住了。`);
+  const blockedLine = listClause(
+    blocked,
+    (name) => say(`${name}被拦住了。`, `${cap(name)} was blocked.`),
+    (names) => say(`${names}被拦住了。`, `${cap(names)} were blocked.`),
+  );
   if (blockedLine) sentences.push(blockedLine);
   if (got.length && !blocked.length && !absent.length) {
-    sentences.push("这几项是画出来、量出来的，清掉 Cookie 或开无痕，通常改不掉。");
+    sentences.push(say(
+      "这几项是画出来、量出来的，清掉 Cookie 或开无痕，通常改不掉。",
+      "These were drawn or measured. Clearing cookies or opening a private window usually does not change them.",
+    ));
   }
   return sentenceJoin(sentences);
 }
@@ -829,8 +973,8 @@ function renderSpeech(byId) {
 function lookSpeech(byId) {
   const sentences = [];
   const scheme = readValue(byId, "scheme");
-  if (scheme === "light") sentences.push("你开着浅色模式。");
-  else if (scheme === "dark") sentences.push("你开着深色模式。");
+  if (scheme === "light") sentences.push(say("你开着浅色模式。", "Light mode is on."));
+  else if (scheme === "dark") sentences.push(say("你开着深色模式。", "Dark mode is on."));
   const render = renderSpeech(byId);
   if (render) sentences.push(render);
   return sentenceJoin(sentences);
@@ -841,44 +985,77 @@ function uniquenessSpeech(signals) {
   const usableRows = rows.filter((row) => row.status === "ok" || row.status === "volatile");
   if (!usableRows.length) {
     if (!rows.length) return "";
-    return "能拿来估算的读数太少，这里不把稀有程度说死。这不是实测的访客比例。";
+    return say(
+      "能拿来估算的读数太少，这里不把稀有程度说死。这不是实测的访客比例。",
+      "Too few readings to estimate rarity. This is not a measured visitor rate.",
+    );
   }
   const bits = entropyBits(rows);
-  if (bits < 12) return "按这页自己的估算，这些读数还挺常见，不太能把人分开。这不是实测的访客比例。";
-  if (bits < 22) return "按这页自己的估算，能把范围缩小一点，离只有你一台还远。这不是实测的访客比例。";
-  if (bits < 32) return "按这页自己的估算，算比较少见。不过很多人的屏幕、内核和时区会扎在一起，实际没这么稀奇。这不是实测的访客比例。";
-  return "按这页自己的估算，这组读数看起来比较稀有。这个数是把各项当成各管各的加出来的，算得偏乐观。本站没有访客统计，不能说全世界只有你一台。";
+  if (bits < 12) {
+    return say(
+      "按这页自己的估算，这些读数还挺常见，不太能把人分开。这不是实测的访客比例。",
+      "By this page’s own estimate, these readings are fairly common and do not separate people well. This is not a measured visitor rate.",
+    );
+  }
+  if (bits < 22) {
+    return say(
+      "按这页自己的估算，能把范围缩小一点，离只有你一台还远。这不是实测的访客比例。",
+      "By this page’s own estimate, the field gets a little smaller, and it is still far from only you. This is not a measured visitor rate.",
+    );
+  }
+  if (bits < 32) {
+    return say(
+      "按这页自己的估算，算比较少见。不过很多人的屏幕、内核和时区会扎在一起，实际没这么稀奇。这不是实测的访客比例。",
+      "By this page’s own estimate, this is fairly uncommon. Screens, engines, and time zones often travel together, so it is less rare in practice. This is not a measured visitor rate.",
+    );
+  }
+  return say(
+    "按这页自己的估算，这组读数看起来比较稀有。这个数是把各项当成各管各的加出来的，算得偏乐观。本站没有访客统计，不能说全世界只有你一台。",
+    "By this page’s own estimate, this set looks fairly rare. The number adds each item as if it were independent, which is optimistic. This site has no visitor statistics and cannot say you are the only one.",
+  );
 }
 
 function idSpeech(id) {
   if (id == null) return "";
-  if (!String(id)) return "这一轮没能把读数收成指纹 ID。";
+  if (!String(id)) return say("这一轮没能把读数收成指纹 ID。", "This round could not fold the readings into a fingerprint ID.");
   const shown = formatDigest(id, 24);
-  return `指纹 ID 是 ${shown}。同一台电脑、同一个浏览器，稳定项不变的话，再测一次还是这一串。窗口拖一拖、存储用量、网络类型，这些会变，所以没写进这个 ID。`;
+  return say(
+    `指纹 ID 是 ${shown}。同一台电脑、同一个浏览器，稳定项不变的话，再测一次还是这一串。窗口拖一拖、存储用量、网络类型，这些会变，所以没写进这个 ID。`,
+    `The fingerprint ID is ${shown}. On the same computer and browser, another run stays this string while the stable items stay put. Window size, storage use, and network type change, so they are not in this ID.`,
+  );
 }
 
 export function buildPortrait(signals, connection = null, options = {}) {
-  const rows = dedupeSignals(signals);
-  const byId = new Map(rows.map((row) => [row.id, row]));
-  const now = options.now instanceof Date ? options.now : new Date();
-  const paragraphs = [];
-  const locale = localeSpeech(byId);
-  if (locale) paragraphs.push(locale);
-  paragraphs.push(geoSpeech(byId, connection, now));
-  const device = deviceParagraphs(byId);
-  for (const paragraph of device) paragraphs.push(paragraph);
-  const isp = ispSpeech(connection);
-  if (isp) paragraphs.push(isp);
-  const consistency = consistencySpeech(byId, connection);
-  if (consistency) paragraphs.push(consistency);
-  const look = lookSpeech(byId);
-  if (look) paragraphs.push(look);
-  if (!locale && !device.length && !look && !connection) {
-    paragraphs.unshift("这一轮没采到多少能说出口的读数。");
+  const prev = speechLang;
+  speechLang = options.lang === "en" ? "en" : "zh";
+  try {
+    const rows = dedupeSignals(signals);
+    const byId = new Map(rows.map((row) => [row.id, row]));
+    const now = options.now instanceof Date ? options.now : new Date();
+    const paragraphs = [];
+    const locale = localeSpeech(byId);
+    if (locale) paragraphs.push(locale);
+    paragraphs.push(geoSpeech(byId, connection, now));
+    const device = deviceParagraphs(byId);
+    for (const paragraph of device) paragraphs.push(paragraph);
+    const isp = ispSpeech(connection);
+    if (isp) paragraphs.push(isp);
+    const consistency = consistencySpeech(byId, connection);
+    if (consistency) paragraphs.push(consistency);
+    const look = lookSpeech(byId);
+    if (look) paragraphs.push(look);
+    if (!locale && !device.length && !look && !connection) {
+      paragraphs.unshift(say("这一轮没采到多少能说出口的读数。", "This round did not collect much that can be said out loud."));
+    }
+    paragraphs.push(say("年龄、职业、你是谁，这些读数里推不出来。这页也不猜。", "Age, job, and who you are cannot be inferred from these readings. This page does not guess."));
+    const estimate = sentenceJoin([uniquenessSpeech(rows), idSpeech(options.id)]);
+    if (estimate) paragraphs.push(estimate);
+    paragraphs.push(say(
+      "这些话只用了这一页已经拿到的值，没有额外去查你。刷新率、装了哪些扩展、在不在充电，浏览器不给这页，所以不写。刷新之后，这段也不留在你电脑上。",
+      "These sentences use only values this page already has. Nothing else was looked up. Refresh rate, installed extensions, and charging state are not given to this page, so they are not written. After a refresh, this text is not kept on the computer.",
+    ));
+    return paragraphs;
+  } finally {
+    speechLang = prev;
   }
-  paragraphs.push("年龄、职业、你是谁，这些读数里推不出来。这页也不猜。");
-  const estimate = sentenceJoin([uniquenessSpeech(rows), idSpeech(options.id)]);
-  if (estimate) paragraphs.push(estimate);
-  paragraphs.push("这些话只用了这一页已经拿到的值，没有额外去查你。刷新率、装了哪些扩展、在不在充电，浏览器不给这页，所以不写。刷新之后，这段也不留在你电脑上。");
-  return paragraphs;
 }
