@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import { compareResolvers, dedupeResolvers, parseEdns } from "../public/assets/logic/dnsleak.js";
-import { classifyProbe, normalizeHost, probeUrl, SITE_PROBES } from "../public/assets/logic/sites.js";
+import { classifyProbe, normalizeHost, probeUrl, rememberLatency, SITE_PROBES, sparkBars } from "../public/assets/logic/sites.js";
 import { familyOf, parsePlainIp, sameIp, STACK_PROBES } from "../public/assets/logic/stack.js";
 
 test("plain IP text keeps the requested family", () => {
@@ -51,7 +52,33 @@ test("site probe hosts are our own short list", () => {
   assert.equal(classifyProbe({ ok: true }), "open");
   assert.equal(classifyProbe({ ok: false, reason: "timeout" }), "timeout");
   assert.equal(classifyProbe({ ok: false, reason: "fail" }), "fail");
-  assert.equal(SITE_PROBES.length, 10);
-  assert.ok(SITE_PROBES.some((row) => row.host === "www.bilibili.com"));
-  assert.ok(SITE_PROBES.some((row) => row.host === "github.com"));
+  assert.deepEqual(SITE_PROBES.map((row) => row.zh), ["Google", "YouTube", "GitHub", "Cloudflare", "Claude", "ChatGPT", "WeChat"]);
+  assert.equal(SITE_PROBES.find((row) => row.id === "wechat").host, "weixin.qq.com");
+  const trail = rememberLatency([120, null], 400, 4);
+  assert.deepEqual(trail, [120, null, 400]);
+  const bars = sparkBars([100, 500], 4);
+  assert.equal(bars.length, 4);
+  assert.equal(bars[0].tone, "empty");
+  assert.equal(bars[2].tone, "fast");
+  assert.equal(bars[3].tone, "slow");
+  assert.ok(bars[3].height >= bars[2].height);
+});
+
+test("checkup copy stays on one card and does not name the probe vendors", () => {
+  const html = readFileSync(new URL("../public/index.html", import.meta.url), "utf8");
+  const phrases = readFileSync(new URL("../public/assets/logic/phrases.js", import.meta.url), "utf8");
+  const app = readFileSync(new URL("../public/assets/app.js", import.meta.url), "utf8");
+  assert.match(html, /id="tab4"/);
+  assert.match(html, /id="tab6"/);
+  assert.match(html, /class="ipbig"/);
+  assert.match(html, /再测一次/);
+  assert.match(html, /复制体检摘要/);
+  assert.match(html, /以上字段优先由离你最近的边缘节点直接从连接里读出/);
+  assert.doesNotMatch(html, /id="reach"/);
+  assert.doesNotMatch(`${html}\n${phrases}\n${app}`, /icanhazip|api-ipv4|api-ipv6|4\. \/ 6\./);
+  const gfw = readFileSync(new URL("../public/gfwblock.html", import.meta.url), "utf8");
+  assert.match(gfw, /被墙检测/);
+  assert.match(gfw, /id="reach"/);
+  assert.match(gfw, /ip-ui-theme/);
+  assert.match(gfw, /ip-ui-lang/);
 });

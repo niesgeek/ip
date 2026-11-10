@@ -30,3 +30,13 @@
   Cache-Control: no-cache
   Referrer-Policy: no-referrer
   X-Content-Type-Options: nosniff
+
+/gfwblock
+  Cache-Control: no-cache
+  Referrer-Policy: no-referrer
+  X-Content-Type-Options: nosniff
+
+/gfwblock.html
+  Cache-Control: no-cache
+  Referrer-Policy: no-referrer
+  X-Content-Type-Options: nosniff
