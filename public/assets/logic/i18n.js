@@ -69,7 +69,7 @@ function translateText(root) {
   while (walker.nextNode()) nodes.push(walker.currentNode);
   for (const node of nodes) {
     const parent = node.parentElement;
-    if (!parent || parent.closest("[data-en], [data-en-html], script, style, .theme-switch, .pg, #stackNote, #stackGo, #mySum, #myIpSub, #myipSrc, #barMe, #leakGo, #leakVerdict, #leakList, #siteGo, #siteAdd, #siteList, #status")) continue;
+    if (!parent || parent.closest("[data-en], [data-en-html], script, style, .theme-switch, .pg, #stackReady, #stackIdle, #stackMiss, #stackAgain, #mySum, #myipSrc, #barMe, #leakGo, #leakVerdict, #leakList, #siteGo, #siteList, #status")) continue;
     if (!textOriginal.has(node)) textOriginal.set(node, node.nodeValue);
     const raw = textOriginal.get(node);
     if (lang !== "en") {

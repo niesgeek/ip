@@ -13,17 +13,9 @@ import {
   ptrName,
   splitTargets,
 } from "./logic/net.js";
-import {
-  GLOBALPING_ENDPOINT,
-  globalpingBody,
-  packProtocol,
-  probesFromGlobalping,
-  summarizeReach,
-  validateTarget,
-} from "./logic/reach.js";
 import { compareResolvers, EDNS_URL, EDNS_VENDOR, parseEdns } from "./logic/dnsleak.js";
 import { applyDom, bindLangToggle, getLang, L, onLang } from "./logic/i18n.js";
-import { CUSTOM_SITE_LIMIT, SITE_PROBES, classifyProbe, normalizeHost, probeUrl } from "./logic/sites.js";
+import { CUSTOM_SITE_LIMIT, SITE_PROBES, classifyProbe, normalizeHost, probeUrl, rememberLatency, sparkBars } from "./logic/sites.js";
 import { STACK_PROBES, familyOf, parsePlainIp, sameIp } from "./logic/stack.js";
 
 const SOURCE_EN = {
@@ -59,8 +51,6 @@ const state = {
   customSites: [],
   siteResults: [],
   siteRunning: false,
-  reachModel: null,
-  reachCached: false,
 };
 
 function esc(value) {
@@ -473,8 +463,11 @@ function applyClock(record, prefix) {
 }
 
 const stacks = {
-  probed: false,
-  probing: false,
+  booting: true,
+  failed: false,
+  probing: "",
+  userPicked: false,
+  active: "4",
   diverged: "",
   v4: { phase: "idle", view: null, via: "" },
   v6: { phase: "idle", view: null, via: "" },
@@ -493,103 +486,151 @@ function renderMe(view, diverged) {
     slot.phase = "known";
     slot.view = view;
     slot.via = view.edge ? "edge" : "fallback";
+    if (!stacks.userPicked) stacks.active = family;
   }
   $("#barMeIp").textContent = view?.ip || L("读取失败", "unreadable");
-  const badge = $("#myipSrc");
-  badge.textContent = view?.edge ? L("边缘直读", "From the edge") : L("接口兜底", "Public fallback");
-  badge.className = `badge${view?.edge ? "" : " badge-grey"}`;
-  const conn = [];
-  if (view?.edge) {
-    conn.push([L("这次连接", "This request"), view.type || "—"]);
-    conn.push([L("连接 / TLS", "Connection / TLS"), [view.httpProtocol, view.tlsVersion].filter(Boolean).join(" / ") || "—"]);
-    conn.push([L("接入节点", "Edge site"), view.colo || "—"]);
-  }
-  $("#myKv").innerHTML = conn.map(([k, v]) => `<div class="kv-row"><dt>${esc(k)}</dt><dd>${esc(v || "—")}</dd></div>`).join("");
-  const warn = $("#myGeoWarn");
-  if (stacks.diverged && view?.edge) {
-    warn.innerHTML = `<svg width="13" height="13" aria-hidden="true"><use href="#i-info"/></svg><span>${esc(L(
-      `边缘判定 ${view.countryName || view.cc || "—"}，公开接口判定 ${stacks.diverged}。该地址段在不同归属地库里的判定本来就不一致，上方字段一律取自边缘。`,
-      `The edge says ${view.countryName || view.cc || "—"}, a public database says ${stacks.diverged}. Those libraries disagree on this range. The fields above stay with the edge.`,
-    ))}</span>`;
-    warn.hidden = false;
-  } else warn.hidden = true;
-  $("#mySum").hidden = false;
-  renderStacks();
   MapView.setMe(view);
   const off = zoneOffsetSeconds(view?.timezone) ?? zoneOffsetSeconds(Intl.DateTimeFormat().resolvedOptions().timeZone);
   $("#ckMe").dataset.off = off == null ? "" : String(off);
   $("#ckMeZone").textContent = view?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || "—";
   tickClocks();
+  renderStack();
 }
 
-function stackCopy(slot) {
-  if (slot.phase === "known" && slot.view?.ip) return slot.view.ip;
-  if (slot.phase === "loading") return L("正在问…", "Asking…");
-  if (slot.phase === "missing") return L("没有这条出口", "No exit on this stack");
-  if (slot.phase === "error") return L("这次没问到", "This check failed");
-  return L("尚未探测", "Not checked yet");
+function stackRows(slot) {
+  const view = slot.view;
+  const risk = view ? assessRisk({ org: view.org, isp: view.isp, asn: view.asn, local: view.local }) : null;
+  const onEdge = slot.via === "edge";
+  const absent = slot.via === "fallback" ? L("需边缘节点", "Needs the edge") : "—";
+  return [
+    [L("国家 / 城市", "Country / city"), [view?.countryName, view?.city].filter(Boolean).join(" ")],
+    [L("运营商", "Operator"), view ? orgText(view) : ""],
+    ["ASN", view?.asn ? `AS${view.asn}` : ""],
+    [L("线路", "Line"), risk ? `${tierText(risk)} ${risk.score}` : ""],
+    [L("协议版本", "IP version"), view?.type || ""],
+    [L("连接 / TLS", "Connection / TLS"), onEdge ? ([view?.httpProtocol, view?.tlsVersion].filter(Boolean).join(" / ") || "—") : absent],
+    [L("接入节点", "Edge site"), onEdge ? (view?.colo || "—") : absent],
+  ];
 }
 
-function renderStacks() {
-  for (const family of ["4", "6"]) {
-    const slot = stackSlot(family);
-    const card = $(`#stack${family}`);
-    const view = slot.view;
-    card.classList.toggle("is-miss", slot.phase === "missing" || slot.phase === "error");
-    card.classList.toggle("is-idle", slot.phase === "idle" || slot.phase === "loading");
-    $(`#stack${family}State`).textContent = slot.phase === "known"
-      ? (slot.via === "edge" ? L("本次连接", "This request") : slot.via === "probe" ? L("探测到", "Probed") : L("已读到", "Read"))
-      : slot.phase === "missing" ? L("缺失", "Missing")
-        : slot.phase === "error" ? L("失败", "Failed")
-          : slot.phase === "loading" ? L("探测中", "Checking")
-            : L("未测", "Not run");
-    const button = $(`#stack${family}Ip`);
-    button.textContent = stackCopy(slot);
-    button.disabled = !(slot.phase === "known" && view?.ip);
-    const risk = view ? assessRisk({ org: view.org, isp: view.isp, asn: view.asn, local: view.local }) : null;
-    $(`#stack${family}Place`).textContent = view
-      ? (placeName(view) || L("没有地理字段", "No geography"))
-      : (slot.phase === "missing"
-        ? L("这台设备现在没有这一侧的公网出口，或专用地址没连上。", "This device has no public exit on this stack, or the family-specific address did not connect.")
-        : slot.phase === "error"
-          ? L("icanhazip 和 ip.sb 都没有返回这一侧的地址。", "Neither icanhazip nor ip.sb returned an address for this stack.")
-          : "");
-    $(`#stack${family}Meta`).textContent = view
-      ? [view.asn ? `AS${view.asn}` : "", orgText(view), risk ? `${tierText(risk)} ${risk.score}` : ""].filter(Boolean).join(" · ")
-      : "";
+function sourceBadge(slot) {
+  const badge = $("#myipSrc");
+  if (!badge) return;
+  if (slot?.via === "edge" && slot.phase === "known") {
+    badge.textContent = L("边缘直读", "From the edge");
+    badge.className = "badge";
+    return;
   }
-  const known = [stacks.v4, stacks.v6].filter((slot) => slot.phase === "known").length;
-  $("#myIpSub").textContent = known === 2
-    ? L("IPv4 和 IPv6 出口都读到了。", "Both IPv4 and IPv6 exits were read.")
-    : known === 1
-      ? L("目前只看到一侧。另一侧要点下面才会去问。", "Only one stack is visible. The other is asked only after the button below.")
-      : L("还没有读到公网出口。", "No public exit yet.");
-  const go = $("#stackGo");
-  go.disabled = stacks.probing;
-  go.textContent = stacks.probing
-    ? L("探测中…", "Checking…")
-    : stacks.probed ? L("再测一次", "Run again") : L("探测另一侧出口", "Check the other exit");
+  if (slot?.via === "fallback" && slot.phase === "known") {
+    badge.textContent = L("接口兜底", "Public fallback");
+    badge.className = "badge badge-grey";
+    return;
+  }
+  if (slot?.phase === "known") {
+    badge.textContent = L("已探测", "Probed");
+    badge.className = "badge badge-grey";
+    return;
+  }
+  if (slot?.phase === "missing" || slot?.phase === "error") {
+    badge.textContent = L("没有出口", "No exit");
+    badge.className = "badge badge-grey";
+    return;
+  }
+  badge.textContent = stacks.booting ? L("读取中", "Reading") : L("未测", "Not run");
+  badge.className = "badge badge-grey";
+}
+
+function renderStack() {
+  const family = stacks.active === "6" ? "6" : "4";
+  stacks.active = family;
+  const slot = stackSlot(family);
+  const view = slot.view;
+  for (const key of ["4", "6"]) {
+    const tab = $(`#tab${key}`);
+    if (!tab) continue;
+    const on = key === family;
+    tab.setAttribute("aria-selected", on ? "true" : "false");
+    tab.tabIndex = on ? 0 : -1;
+  }
+  const known = slot.phase === "known" && view;
+  const loading = slot.phase === "loading" || stacks.probing === family;
+  const missing = slot.phase === "missing" || slot.phase === "error";
+  const showReady = Boolean(known || loading || (stacks.booting && !missing));
+  const showMiss = missing && !loading;
+  const showIdle = !showReady && !showMiss;
+  show($("#stackReady"), showReady);
+  show($("#stackIdle"), showIdle);
+  show($("#stackMiss"), showMiss);
+  if (showReady) {
+    $("#myIpTxt").textContent = known ? (view.ip || "— — —") : (loading ? L("正在问…", "Asking…") : "— — —");
+    $("#myIp").disabled = !known;
+    $("#myIpFlag").innerHTML = known ? flagHtml(view.cc, 34, 24) : "";
+    $("#myIpSub").textContent = known
+      ? (placeName(view) || L("没有地理字段", "No geography"))
+      : L("正在识别你的公网地址…", "Reading your public address…");
+    const rows = known ? stackRows(slot) : [
+      [L("国家 / 城市", "Country / city"), ""],
+      [L("运营商", "Operator"), ""],
+      ["ASN", ""],
+      [L("线路", "Line"), ""],
+      [L("协议版本", "IP version"), ""],
+      [L("连接 / TLS", "Connection / TLS"), ""],
+      [L("接入节点", "Edge site"), ""],
+    ];
+    $("#myKv").innerHTML = rows.map(([k, v]) => `<div class="kv-row"><dt>${esc(k)}</dt><dd class="${v ? "" : "sk"}">${esc(v || "…")}</dd></div>`).join("");
+    const warn = $("#myGeoWarn");
+    if (known && slot.via === "edge" && stacks.diverged) {
+      warn.innerHTML = `<svg width="13" height="13" aria-hidden="true"><use href="#i-info"/></svg><span>${esc(L(
+        `边缘判定 ${view.countryName || view.cc || "—"}，公开接口判定 ${stacks.diverged}。该地址段在不同归属地库里的判定本来就不一致，上方字段一律取自边缘。`,
+        `The edge says ${view.countryName || view.cc || "—"}, a public database says ${stacks.diverged}. Those libraries disagree on this range. The fields above stay with the edge.`,
+      ))}</span>`;
+      warn.hidden = false;
+    } else if (warn) warn.hidden = true;
+  }
+  if (showIdle) {
+    const untouched = stacks.failed && stacks.v4.phase === "idle" && stacks.v6.phase === "idle";
+    $("#stackIdleTitle").textContent = untouched
+      ? L("这次连接没读到", "This connection was not read")
+      : L(`IPv${family} 还没读`, `IPv${family} has not been read`);
+    $("#stackIdleCopy").textContent = untouched
+      ? L("可以直接探测这一侧。结果只留在这一页。", "You can probe this side directly. The result stays on this page.")
+      : L("打开页面只读这一次连接用的那一侧。要点一下，才会去问这边的出口。", "Opening the page only reads the stack this connection used. This side is asked only after you click.");
+    const probe = $("#stackProbe");
+    probe.disabled = Boolean(stacks.probing);
+    probe.textContent = stacks.probing ? L("探测中…", "Checking…") : L("探测这一侧", "Check this side");
+  }
+  if (showMiss) {
+    $("#stackMissTitle").textContent = L("没有出口", "No exit");
+    $("#stackMissText").textContent = L("这一侧没有公网出口。", "This side has no public exit.");
+  }
+  sourceBadge(showReady || showMiss ? slot : slot);
+  const again = $("#stackAgain");
+  if (again) {
+    again.disabled = Boolean(stacks.probing);
+    again.textContent = stacks.probing ? L("探测中…", "Checking…") : L("再测一次", "Run again");
+  }
   const summary = $("#mySum");
   if (summary) summary.textContent = L("复制体检摘要", "Copy summary");
-  const note = $("#stackNote");
-  if (note) {
-    note.textContent = L(
-      "打开页面时只读这一次连接用的那一侧，不额外打第三方。点下面才会向 icanhazip.com 的 IPv4 / IPv6 专用地址各问一行 IP，失败再问 ip.sb。没有自定义域名，所以还不能用 4. / 6. 主机名。",
-      "Opening the page only reads the stack this request used. The button below asks icanhazip.com’s IPv4-only and IPv6-only addresses for a single IP line, then ip.sb if that fails. Without a custom domain there is no 4. / 6. hostname yet.",
-    );
-  }
+}
+
+function selectStack(family) {
+  if (family !== "4" && family !== "6") return;
+  stacks.userPicked = true;
+  stacks.active = family;
+  renderStack();
 }
 
 async function probeFamily(family) {
+  if (stacks.probing) return;
   const slot = stackSlot(family);
-  if (slot.phase === "known" && slot.via === "edge" && !stacks.probed) return;
+  if ((slot.via === "edge" || slot.via === "fallback") && slot.phase === "known") return;
+  stacks.probing = family;
+  stacks.active = family;
   slot.phase = "loading";
-  slot.error = "";
-  renderStacks();
+  slot.view = null;
+  renderStack();
   let found = null;
-  let asked = false;
-  for (const probe of STACK_PROBES[family]) {
-    asked = true;
+  for (const probe of STACK_PROBES[family] || []) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 6000);
     try {
@@ -597,45 +638,85 @@ async function probeFamily(family) {
       const text = await response.text();
       found = parsePlainIp(text, family);
       if (found) break;
-    } catch { /* try the next endpoint */ }
+    } catch { /* the next endpoint */ }
     finally { clearTimeout(timer); }
   }
   if (!found) {
-    slot.phase = asked ? "missing" : "error";
+    slot.phase = "missing";
     slot.view = null;
-    renderStacks();
+    slot.via = "";
+    stacks.probing = "";
+    renderStack();
     return;
   }
   const existing = state.me && sameIp(state.me.ip, found.ip) ? state.me : null;
   if (existing) {
     slot.phase = "known";
     slot.view = existing;
-    slot.via = existing.edge ? "edge" : "fallback";
-    renderStacks();
+    slot.via = existing.edge ? "edge" : (existing.sourceId ? "fallback" : "probe");
+    stacks.probing = "";
+    renderStack();
     return;
   }
   const geo = await lookupGeo(found.ip).catch(() => null);
   slot.phase = "known";
   slot.via = "probe";
   slot.view = geo?.record ? viewOf(geo.record, geo.source, geo.skipped) : { ip: found.ip, type: found.type, cc: null };
-  renderStacks();
+  stacks.probing = "";
+  renderStack();
 }
 
-async function runStacks() {
+async function reloadConnection() {
   if (stacks.probing) return;
-  stacks.probing = true;
-  renderStacks();
+  stacks.probing = stacks.active || "4";
+  renderStack();
   try {
-    await Promise.all(["4", "6"].map(async (family) => {
-      const slot = stackSlot(family);
-      if (slot.phase === "known" && slot.via === "edge") return;
-      await probeFamily(family);
-    }));
-    stacks.probed = true;
+    let edgeRecord = null;
+    try {
+      const response = await fetch("/api/whoami", { cache: "no-store", headers: { accept: "application/json" } });
+      if (response.ok) {
+        const data = await response.json();
+        if (edgeUsable(data)) edgeRecord = recordFromEdge(data);
+      }
+    } catch { /* public fallback below */ }
+    if (edgeRecord) {
+      let view = viewOf(edgeRecord, "edge");
+      const extra = await lookupGeo(edgeRecord.ip).catch(() => null);
+      let diverged = "";
+      if (extra?.record) {
+        if (!view.org && extra.record.org) view = { ...view, org: extra.record.org };
+        if (!view.isp && extra.record.isp) view = { ...view, isp: extra.record.isp };
+        if (!view.asn && extra.record.asn) view = { ...view, asn: extra.record.asn };
+        if (extra.record.country_code && view.cc && extra.record.country_code !== view.cc) {
+          diverged = `${countryLabel(extra.record.country_code, extra.record.country)}${extra.record.city ? ` / ${extra.record.city}` : ""}`;
+        }
+      }
+      stacks.failed = false;
+      renderMe(view, diverged);
+      return;
+    }
+    const geo = await lookupGeo(null).catch(() => null);
+    if (geo?.record) {
+      stacks.failed = false;
+      renderMe(viewOf(geo.record, geo.source, geo.skipped));
+      return;
+    }
+    stacks.failed = true;
+    $("#barMeIp").textContent = L("读取失败", "unreadable");
   } finally {
-    stacks.probing = false;
-    renderStacks();
+    stacks.probing = "";
+    stacks.booting = false;
+    renderStack();
   }
+}
+
+async function rerunVisible() {
+  const slot = stackSlot(stacks.active);
+  if ((slot.via === "edge" || slot.via === "fallback") && slot.phase === "known") {
+    await reloadConnection();
+    return;
+  }
+  await probeFamily(stacks.active);
 }
 
 async function runLeak() {
@@ -702,25 +783,46 @@ function siteRows() {
   ];
 }
 
+function siteLabel(row) {
+  return getLang() === "en" ? (row.en || row.zh || row.host) : (row.zh || row.host);
+}
+
+function siteMark(row) {
+  if (row.state === "open") return { text: L("可用", "Up"), tone: "ok" };
+  if (row.state === "timeout") return { text: L("超时", "Timed out"), tone: "bad" };
+  if (row.state === "fail") return { text: L("不可用", "Down"), tone: "bad" };
+  if (row.state === "run") return { text: L("探测中", "Checking"), tone: "wait" };
+  return { text: L("未测", "Not run"), tone: "wait" };
+}
+
 function renderSites() {
   const host = $("#siteList");
   if (!host) return;
-  const rows = state.siteResults || [];
-  if (!rows.length) {
-    host.innerHTML = `<p class="fine">${esc(L("还没开始。点「开始」后才会从这台浏览器去碰下面这些网站。", "Not started. Nothing is contacted until you press Start."))}</p>`;
-    return;
-  }
-  host.innerHTML = rows.map((row) => {
-    const label = getLang() === "en" ? (row.en || row.zh || row.host) : (row.zh || row.host);
-    let mark = L("等待", "waiting");
-    let tone = "";
-    if (row.state === "open") { mark = L("打开了", "opened"); tone = "tone-open"; }
-    else if (row.state === "timeout") { mark = L("超时", "timed out"); tone = "tone-fail"; }
-    else if (row.state === "fail") { mark = L("没连上", "did not connect"); tone = "tone-fail"; }
-    else if (row.state === "run") { mark = L("探测中", "checking"); }
-    const ms = row.ms == null ? "" : `${row.ms} ms`;
-    return `<div class="site-row"><span>${esc(label)} <span class="mono">${esc(row.host)}</span></span><span class="${tone}">${esc(mark)}</span><span class="site-ms">${esc(ms)}</span></div>`;
+  const rows = state.siteResults?.length
+    ? state.siteResults
+    : siteRows().map((row) => ({ ...row, state: "wait", ms: null, history: [] }));
+  const cards = rows.map((row) => {
+    const label = siteLabel(row);
+    const mark = siteMark(row);
+    const ms = row.state === "open" && row.ms != null ? `${row.ms} ms` : (row.state === "run" ? "…" : "—");
+    const bars = sparkBars(row.history).map((bar) => `<i class="spark-${bar.tone}" style="height:${bar.height}%"></i>`).join("");
+    return `<article class="site-card">
+      <div class="site-top">
+        <span class="site-ico"><img alt="" src="${esc(probeUrl(row.host))}" referrerpolicy="no-referrer" onerror="this.hidden=true"><b>${esc((label || "?").slice(0, 1).toUpperCase())}</b></span>
+        <span class="site-name">${esc(label)}</span>
+        <span class="site-ms">${esc(ms)}</span>
+      </div>
+      <p class="site-state site-${mark.tone}"><i></i>${esc(mark.text)}</p>
+      <span class="spark" aria-hidden="true">${bars}</span>
+    </article>`;
   }).join("");
+  const add = `<form class="site-card site-add" id="siteAddForm">
+    <span class="site-add-plus" aria-hidden="true">+</span>
+    <span class="site-add-k">${esc(L("添加测试", "Add a site"))}</span>
+    <input id="siteInput" type="text" spellcheck="false" autocomplete="off" placeholder="example.com" aria-label="${esc(L("自定义网站", "Custom site"))}">
+    <button class="btn btn-ghost btn-sm" id="siteAdd" type="submit">${esc(L("添加", "Add"))}</button>
+  </form>`;
+  host.innerHTML = cards + add;
 }
 
 async function probeSite(row) {
@@ -742,8 +844,14 @@ async function runSites() {
   if (state.siteRunning) return;
   state.siteRunning = true;
   const button = $("#siteGo");
-  button.disabled = true;
-  state.siteResults = siteRows().map((row) => ({ ...row, state: "run", ms: null }));
+  if (button) button.disabled = true;
+  const previous = new Map((state.siteResults || []).map((row) => [row.host, row.history || []]));
+  state.siteResults = siteRows().map((row) => ({
+    ...row,
+    state: "run",
+    ms: null,
+    history: previous.get(row.host) || [],
+  }));
   renderSites();
   const queue = state.siteResults;
   let cursor = 0;
@@ -752,14 +860,14 @@ async function runSites() {
       const index = cursor;
       cursor += 1;
       const result = await probeSite(queue[index]);
-      queue[index] = { ...queue[index], ...result };
+      const sample = result.state === "open" ? result.ms : null;
+      queue[index] = { ...queue[index], ...result, history: rememberLatency(queue[index].history, sample) };
       renderSites();
     }
   }
   await Promise.all(Array.from({ length: Math.min(4, queue.length) }, () => worker()));
   state.siteRunning = false;
-  button.disabled = false;
-  button.textContent = L("再测一次", "Run again");
+  if (button) button.disabled = false;
 }
 
 function addCustomSite() {
@@ -778,8 +886,7 @@ function addCustomSite() {
     return;
   }
   state.customSites.push({ id: host, host, zh: host, en: host, custom: true });
-  $("#siteInput").value = "";
-  if (state.siteResults?.length) state.siteResults.push({ ...state.customSites.at(-1), state: "wait", ms: null });
+  if (state.siteResults?.length) state.siteResults.push({ ...state.customSites.at(-1), state: "wait", ms: null, history: [] });
   renderSites();
 }
 
@@ -859,7 +966,6 @@ function renderDetail(view) {
     show($("#shareRes"), false);
     renderDnsBox(view);
     renderRisk(null);
-    syncReach("");
     return;
   }
   if (top) top.hidden = false;
@@ -933,7 +1039,6 @@ function renderDetail(view) {
   MapView.setTarget(view);
   renderDuo(view);
   applyClock(view, "ckTgt");
-  syncReach(view.local ? "" : view.ip);
 }
 
 function renderDnsBox(view) {
@@ -1103,6 +1208,7 @@ async function runQuery(raw, options = {}) {
 }
 
 async function loadMe() {
+  try {
   let edgeRecord = null;
   try {
     const response = await fetch("/api/whoami", { cache: "no-store", headers: { accept: "application/json" } });
@@ -1127,10 +1233,8 @@ async function loadMe() {
   } else {
     const geo = await lookupGeo(null).catch(() => null);
     if (!geo?.record) {
-      $("#myIpSub").textContent = L("可能是网络受限或接口被限流，稍后刷新重试。", "The network may be restricted or a provider is rate-limiting. Refresh and try again.");
+      stacks.failed = true;
       $("#barMeIp").textContent = L("读取失败", "unreadable");
-      $("#myipSrc").textContent = L("未读到", "unread");
-      renderStacks();
       setStatus(L("没能读出你的网络信息，直接输入 IP 查询仍然可用。", "Your network could not be read. Looking up an IP you type still works."), "err");
       return;
     }
@@ -1144,6 +1248,10 @@ async function loadMe() {
       $("#qInput").value = state.me.ip;
       runQuery(state.me.ip, { noUrl: true, silent: true });
     }
+  }
+  } finally {
+    stacks.booting = false;
+    renderStack();
   }
 }
 
@@ -1389,249 +1497,6 @@ async function runPriv() {
   $("#privGo").disabled = false;
 }
 
-const REACH_CACHE = "ip-lookup.reach.v1";
-let reachSeq = 0;
-let reachAbort = null;
-let reachKey = "";
-
-function reachSleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function readReachCache(ip, port) {
-  try {
-    const all = JSON.parse(sessionStorage.getItem(REACH_CACHE) || "{}");
-    const hit = all[`${ip}|${port}`];
-    if (!hit || Date.now() - hit.at > 10 * 60 * 1000) return null;
-    return hit.model;
-  } catch {
-    return null;
-  }
-}
-
-function dropReachCache(ip, port) {
-  try {
-    const all = JSON.parse(sessionStorage.getItem(REACH_CACHE) || "{}");
-    delete all[`${ip}|${port}`];
-    sessionStorage.setItem(REACH_CACHE, JSON.stringify(all));
-  } catch { /* private mode */ }
-}
-
-function writeReachCache(model) {
-  try {
-    const all = JSON.parse(sessionStorage.getItem(REACH_CACHE) || "{}");
-    const keys = Object.keys(all);
-    if (keys.length > 8) delete all[keys[0]];
-    all[`${model.ip}|${model.port}`] = { at: Date.now(), model };
-    sessionStorage.setItem(REACH_CACHE, JSON.stringify(all));
-  } catch { /* private mode */ }
-}
-
-function toneOf(id) {
-  if (id === "clear") return "ok";
-  if (id === "blocked" || id === "error") return "bad";
-  if (id === "down" || id === "mixed" || id === "asymmetric") return "warn";
-  return "muted";
-}
-
-function nodeLine(node) {
-  const where = [node.location, node.provider].filter(Boolean).join(" · ") || node.id;
-  const mark = node.status === "ok"
-    ? `<b class="reach-ok">${node.ms == null ? esc(L("通", "up")) : `${esc(node.ms)} ms`}</b>`
-    : `<b class="reach-bad">${esc(L("不通", "down"))}</b>`;
-  return `<div class="reach-node"><span>${esc(where)}</span>${mark}</div>`;
-}
-
-function protoBlock(label, side, nodes) {
-  if (!side) {
-    return `<div class="reach-proto"><div class="reach-proto-h"><span>${esc(label)}</span><span class="pill pill-wait">${esc(L("还在测", "checking"))}</span></div></div>`;
-  }
-  const pill = side.state === "fail" ? "pill-bad" : side.state === "mixed" ? "pill-dc" : side.state === "ok" ? "pill-home" : "pill-wait";
-  const text = side.total < 2 ? L("样本不够", "too few") : L(`通 ${side.ok} · 不通 ${side.fail}`, `up ${side.ok} · down ${side.fail}`);
-  const list = (nodes || []).map(nodeLine).join("");
-  const offline = side.offline ? `<p class="fine">${esc(L(`${side.offline} 个节点离线，已忽略`, `${side.offline} offline nodes ignored`))}</p>` : "";
-  return `<div class="reach-proto"><div class="reach-proto-h"><span>${esc(label)}</span><span class="pill ${pill}">${text}</span></div>${list}${offline}</div>`;
-}
-
-function columnHtml(heading, icmp, tcp, port, overseas) {
-  const icmpNodes = overseas ? icmp?.overseasSample : icmp?.domesticNodes;
-  const tcpNodes = overseas ? tcp?.overseasSample : tcp?.domesticNodes;
-  const icmpSide = overseas ? icmp?.overseas : icmp?.domestic;
-  const tcpSide = overseas ? tcp?.overseas : tcp?.domestic;
-  return `<h3 class="reach-h">${heading}</h3>${protoBlock("ICMP", icmpSide, icmpNodes)}${protoBlock(`TCP ${port}`, tcpSide, tcpNodes)}`;
-}
-
-function paintReach(model, options = {}) {
-  state.reachModel = model || null;
-  state.reachCached = Boolean(options.cached);
-  const banner = $("#reachBanner");
-  const grid = $("#reachGrid");
-  if (!model) {
-    banner.className = "reach-banner tone-muted";
-    $("#reachTitle").textContent = L("还没探测", "Not checked");
-    $("#reachDetail").textContent = L(
-      "在上面查一个公网 IP，这里会自动对照国内和国外。也可以自己填地址和端口。",
-      "Look up a public IP above and this compares mainland China with abroad. You can also type an address and port.",
-    );
-    $("#reachSrc").textContent = L("查询后自动测", "Runs after a lookup");
-    show(grid, false);
-    $("#reachGo").disabled = false;
-    $("#reachGo").textContent = L("开始检测", "Start");
-    return;
-  }
-  const verdict = model.tcp || model.tcpError
-    ? summarizeReach({ icmp: model.icmp, tcp: model.tcp, port: model.port, icmpError: model.icmpError || "", lang: getLang() })
-    : summarizeReach({ icmp: null, tcp: null, port: model.port, lang: getLang() });
-  if (model.tcpError && !model.tcp) {
-    verdict.id = "error";
-    verdict.tone = "bad";
-    verdict.title = "这次没测成";
-    verdict.detail = model.tcpError;
-  }
-  const tone = toneOf(verdict.id);
-  banner.className = `reach-banner tone-${tone}`;
-  $("#reachTitle").textContent = verdict.title;
-  const cached = options.cached ? L(" 这是刚才存在这台浏览器里的结果。", " This is the result kept in this browser a moment ago.") : "";
-  $("#reachDetail").textContent = `${verdict.detail}${cached}`;
-  const tcpName = model.tcp?.source === "globalping" ? "TCP Globalping" : model.tcp ? "TCP ping.pe" : "TCP …";
-  const icmpName = model.icmp ? "ICMP Globalping" : model.icmpError ? "ICMP 失败" : "ICMP …";
-  $("#reachSrc").textContent = model.tcp || model.icmp ? `${tcpName} · ${icmpName}` : "探测中";
-  const hasNodes = Boolean(model.tcp || model.icmp);
-  show(grid, hasNodes);
-  if (hasNodes) {
-    $("#reachDomestic").innerHTML = columnHtml(L("国内", "Mainland China"), model.icmp, model.tcp, model.port, false);
-    $("#reachOverseas").innerHTML = columnHtml(L("国外", "Abroad"), model.icmp, model.tcp, model.port, true);
-  }
-  const waiting = Boolean(model.pending && !model.tcp && !model.tcpError);
-  $("#reachGo").disabled = waiting;
-  $("#reachGo").textContent = waiting ? L("探测中…", "Checking…") : L("重新检测", "Run again");
-}
-
-function showReachError(message) {
-  const err = $("#reachErr");
-  err.hidden = false;
-  err.textContent = message;
-}
-
-function probeErrorMessage(error, fallback) {
-  if (error?.client && error.message) return error.message;
-  const text = String(error?.message || "");
-  if (/failed to fetch|networkerror|load failed|network request failed/i.test(text)) return fallback;
-  if (text && text.length <= 80) return text;
-  return fallback;
-}
-
-async function runGlobalping(ip, port, protocol, signal) {
-  const created = await fetch(GLOBALPING_ENDPOINT, {
-    method: "POST",
-    headers: { "content-type": "application/json", accept: "application/json" },
-    body: JSON.stringify(globalpingBody(ip, port, protocol)),
-    signal,
-  });
-  const payload = await created.json().catch(() => ({}));
-  if (created.status === 429) throw new Error("这个网络的探测次数用完了，大约一小时后再试");
-  if (!created.ok || !payload.id) throw new Error("公开探测接口没有接受这次请求");
-  let wait = 400;
-  for (let i = 0; i < 20; i += 1) {
-    await reachSleep(wait);
-    const response = await fetch(`${GLOBALPING_ENDPOINT}/${encodeURIComponent(payload.id)}`, {
-      cache: "no-store",
-      signal,
-      headers: { accept: "application/json" },
-    });
-    if (response.status === 429) throw new Error("这个网络的探测次数用完了，大约一小时后再试");
-    const data = await response.json().catch(() => ({}));
-    if (data.status && data.status !== "in-progress") return data;
-    wait = 700;
-  }
-  throw new Error("探测超时");
-}
-
-async function loadTcp(ip, port, signal) {
-  let fallback = "";
-  try {
-    const response = await fetch(`/api/reach?ip=${encodeURIComponent(ip)}&port=${port}`, {
-      cache: "no-store",
-      signal,
-      headers: { accept: "application/json" },
-    });
-    const data = await response.json().catch(() => ({}));
-    if (response.status === 400) {
-      const error = new Error(data.error || "地址不能探测");
-      error.client = true;
-      throw error;
-    }
-    const useful = data.tcp && (data.tcp.domestic?.total || 0) + (data.tcp.overseas?.total || 0) > 0;
-    if (response.ok && useful) return data.tcp;
-    fallback = data.error || "";
-  } catch (error) {
-    if (error.client || error.name === "AbortError") throw error;
-    fallback = "边缘探测没有连上";
-  }
-  const measurement = await runGlobalping(ip, port, "TCP", signal).catch((error) => {
-    if (error.name === "AbortError") throw error;
-    const why = probeErrorMessage(error, "备用探测没有连上");
-    throw new Error(fallback ? `${fallback}；${why}` : why);
-  });
-  return packProtocol(probesFromGlobalping(measurement), "globalping");
-}
-
-function syncReach(ip) {
-  if (!ip) {
-    reachAbort?.abort();
-    reachSeq += 1;
-    reachKey = "";
-    paintReach(null);
-    return;
-  }
-  const target = validateTarget(ip, $("#reachPort").value);
-  if (target.error) {
-    showReachError(target.error);
-    return;
-  }
-  $("#reachErr").hidden = true;
-  $("#reachIp").value = target.ip;
-  const cached = readReachCache(target.ip, target.port);
-  if (cached) {
-    reachKey = `${target.ip}|${target.port}`;
-    paintReach(cached, { cached: true });
-    return;
-  }
-  if (reachKey === `${target.ip}|${target.port}` && $("#reachGo").disabled) return;
-  void runReach(target.ip, target.port);
-}
-
-async function runReach(ip, port) {
-  const target = validateTarget(ip, port);
-  if (target.error) {
-    showReachError(target.error);
-    return;
-  }
-  $("#reachErr").hidden = true;
-  reachAbort?.abort();
-  const controller = new AbortController();
-  reachAbort = controller;
-  const seq = ++reachSeq;
-  reachKey = `${target.ip}|${target.port}`;
-  const model = { ip: target.ip, port: target.port, tcp: null, icmp: null, tcpError: "", icmpError: "", pending: true };
-  paintReach(model);
-  const tcpTask = loadTcp(target.ip, target.port, controller.signal).then(
-    (tcp) => { model.tcp = tcp; },
-    (error) => { if (error.name !== "AbortError") model.tcpError = probeErrorMessage(error, "端口探测失败"); },
-  );
-  const icmpTask = runGlobalping(target.ip, target.port, "ICMP", controller.signal).then(
-    (measurement) => { model.icmp = packProtocol(probesFromGlobalping(measurement), "globalping"); },
-    (error) => { if (error.name !== "AbortError") model.icmpError = probeErrorMessage(error, "浏览器没有连上 ICMP 探测"); },
-  );
-  await tcpTask;
-  if (seq === reachSeq) paintReach(model);
-  await icmpTask;
-  if (seq !== reachSeq) return;
-  model.pending = false;
-  paintReach(model);
-  if (model.tcp && model.icmp) writeReachCache(model);
-}
-
 function fillHosts() {
   document.querySelectorAll(".site-host").forEach((node) => { node.textContent = location.host; });
 }
@@ -1642,14 +1507,14 @@ renderCidr();
 paintPriv();
 applyDom(document);
 bindLangToggle();
-state.siteResults = siteRows().map((row) => ({ ...row, state: "wait", ms: null }));
+state.siteResults = siteRows().map((row) => ({ ...row, state: "wait", ms: null, history: [] }));
 renderSites();
-renderStacks();
+renderStack();
 onLang(() => {
   if (state.me) renderMe(localize(state.me), stacks.diverged);
   if (stacks.v4.view) stacks.v4.view = localize(stacks.v4.view);
   if (stacks.v6.view) stacks.v6.view = localize(stacks.v6.view);
-  renderStacks();
+  renderStack();
   if (state.cur) {
     state.cur = localize(state.cur);
     renderDetail(state.cur);
@@ -1661,7 +1526,6 @@ onLang(() => {
     ));
   }
   paintPriv();
-  paintReach(state.reachModel, { cached: state.reachCached });
   renderSites();
   renderCidr();
 });
@@ -1697,26 +1561,31 @@ $("#meBtn").addEventListener("click", () => {
   $("#detail").scrollIntoView({ behavior: "smooth", block: "start" });
 });
 $("#barMe").addEventListener("click", () => { if (state.me?.ip) copyText(state.me.ip, L("已复制 IP", "IP copied")); });
-for (const family of ["4", "6"]) {
-  $(`#stack${family}Ip`).addEventListener("click", () => {
-    const ip = stackSlot(family).view?.ip;
-    if (ip) copyText(ip, L("已复制 IP", "IP copied"));
-  });
-}
-$("#stackGo").addEventListener("click", () => { runStacks(); });
+$("#tab4").addEventListener("click", () => selectStack("4"));
+$("#tab6").addEventListener("click", () => selectStack("6"));
+$("#myIp").addEventListener("click", () => {
+  const ip = stackSlot(stacks.active).view?.ip;
+  if (ip) copyText(ip, L("已复制 IP", "IP copied"));
+});
+$("#stackProbe").addEventListener("click", () => { void probeFamily(stacks.active); });
+$("#stackAgain").addEventListener("click", () => { void rerunVisible(); });
 $("#leakGo").addEventListener("click", () => { runLeak(); });
 $("#siteGo").addEventListener("click", () => { runSites(); });
-$("#siteAdd").addEventListener("click", () => { addCustomSite(); });
-$("#siteInput").addEventListener("keydown", (event) => {
-  if (event.key === "Enter") { event.preventDefault(); addCustomSite(); }
+$("#siteList").addEventListener("submit", (event) => {
+  if (event.target?.id !== "siteAddForm") return;
+  event.preventDefault();
+  addCustomSite();
 });
 $("#mySum").addEventListener("click", () => {
-  if (!state.me && stacks.v4.phase !== "known" && stacks.v6.phase !== "known") return;
   const lines = ["4", "6"].map((family) => {
     const slot = stackSlot(family);
-    if (slot.phase !== "known" || !slot.view) return `IPv${family}: ${stackCopy(slot)}`;
-    const view = slot.view;
-    return `IPv${family}: ${view.ip} | ${placeName(view) || "—"} | ${view.asn ? `AS${view.asn}` : "AS?"} | ${orgText(view) || "—"}`;
+    if (slot.phase === "known" && slot.view?.ip) {
+      const view = slot.view;
+      const risk = assessRisk({ org: view.org, isp: view.isp, asn: view.asn, local: view.local });
+      return `IPv${family}: ${view.ip} | ${placeName(view) || "—"} | ${view.asn ? `AS${view.asn}` : "AS?"} | ${orgText(view) || "—"} | ${tierText(risk)} ${risk.score}`;
+    }
+    if (slot.phase === "missing" || slot.phase === "error") return `IPv${family}: ${L("没有这条出口", "No exit on this stack")}`;
+    return `IPv${family}: ${L("尚未探测", "Not checked yet")}`;
   });
   copyText(lines.join("\n"), L("已复制体检摘要", "Summary copied"));
 });
@@ -1751,24 +1620,6 @@ document.querySelectorAll(".cidr-chip").forEach((button) => {
   });
 });
 $("#privGo").addEventListener("click", runPriv);
-$("#reachGo").addEventListener("click", () => {
-  const target = validateTarget($("#reachIp").value, $("#reachPort").value);
-  if (target.error) { showReachError(target.error); return; }
-  dropReachCache(target.ip, target.port);
-  void runReach(target.ip, target.port);
-});
-$("#reachPort").addEventListener("keydown", (event) => {
-  if (event.key === "Enter") { event.preventDefault(); $("#reachGo").click(); }
-});
-$("#reachIp").addEventListener("keydown", (event) => {
-  if (event.key === "Enter") { event.preventDefault(); $("#reachGo").click(); }
-});
-document.querySelectorAll(".reach-port").forEach((button) => {
-  button.addEventListener("click", () => {
-    $("#reachPort").value = button.dataset.port;
-    if ($("#reachIp").value.trim()) $("#reachGo").click();
-  });
-});
 $("#wipeBtn").addEventListener("click", () => {
   try { localStorage.removeItem(HISTORY_KEY); } catch { /* ignore */ }
   renderHistory();

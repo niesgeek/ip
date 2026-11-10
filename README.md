@@ -62,9 +62,9 @@ TXT 会比较各家返回的记录，留下更完整的一份。解析出的地�
 
 这是名称启发式，不是威胁情报，也不能说明某个地址在做坏事。
 
-### 国内外连通
+### 被墙检测
 
-查到一个公网 IP 之后，页面会同时做两件探测，并给出一句人话结论：
+国内外连通在 `/gfwblock`，导航叫「被墙检测」。首页不再放这一块。打开该页后填一个公网 IP，页面会同时做两件探测，并给出一句人话结论：
 
 - **国外能连、国内不能连**：这个端口很像在大陆被墙或被封。可以换一个端口再测，换了仍然如此，才更像整段 IP 被封。
 - **两边都能连**：不像被墙。
@@ -80,17 +80,17 @@ ICMP 不走 ping.pe。那边的 ping 页面会连带对每个节点做 MTR，不
 
 ### 双栈出口、DNS 泄漏、本机网站
 
-「你的网络体检」并排显示 IPv4 和 IPv6。打开页面时只使用这次请求自己的地址（`/api/whoami`，没有边缘数据时仍走原来的公开地理接口）。另一侧不会自动去问第三方：要点「探测另一侧出口」，页面才向 `ipv4.icanhazip.com` / `ipv6.icanhazip.com` 各取一行 IP，失败再问 `api-ipv4.ip.sb` / `api-ipv6.ip.sb`。界面上写明了这两家。拿到地址之后，归属地、ASN 和风险分仍走现有的 `lookupGeo` / `assessRisk`。`curl` 根路径和 `/json` 不变，仍然只返回当前这条连接的地址。没有自定义域名，所以还没有 `4.` / `6.` 主机名。
+「你的网络体检」是一张卡片，用 IPv4 / IPv6 两个标签切换。打开页面时只使用这次请求自己的地址（`/api/whoami`，没有边缘数据时仍走原来的公开地理接口）。切到还没读过的那一侧不会自动请求：页面上有「探测这一侧」，「再测一次」也只重读当前这一侧。探测时先问 `ipv4.icanhazip.com` / `ipv6.icanhazip.com` 取一行 IP，失败再问 `api-ipv4.ip.sb` / `api-ipv6.ip.sb`，然后走现有的 `lookupGeo` / `assessRisk`。这些名字不出现在界面上。没有这一侧的出口时，卡片写「这一侧没有公网出口」。卡片底下恢复原来那句：字段优先由最近的边缘节点从连接里读出。`curl` 根路径和 `/json` 不变，仍然只返回当前这条连接的地址。
 
 「DNS 泄漏自查」放在 WebRTC 那一格旁边，默认不跑。点了之后，浏览器最多三次跟随 `https://edns.ip-api.com/json` 的一次性跳转，由 ip-api.com 的权威服务器回报是哪台解析器来问的。页面再用现有地理路径补上 ASN，并和当前出口比较。结果留在这一页，不上传。问失败会直接说失败，不编造成功。
 
-「本机常用网站连通」也是点了才从这台浏览器去请求每个站点的 `/favicon.ico`（`no-cors`）。列表是本站自己写的，和「国内外连通」不是一回事：那边仍然是 `/api/reach` 从公开节点看一个 IP。可以临时再加最多 4 个域名，只存在这一页的内存里。有的站点会拒绝这种探测，时间只适合互相比。
+「本机常用网站连通」是首页上的卡片网格：Google、YouTube、GitHub、Cloudflare、Claude、ChatGPT、WeChat，外加一个添加格。点右上角刷新才会从这台浏览器去请求每个站点的 `/favicon.ico`（`no-cors`），不会自己一直轮询。每张卡片有图标、可用或不可用、延迟，以及这一页里最近几次的延迟条。可以临时再加最多 4 个域名，只存在这一页的内存里。这和 `/gfwblock` 不是一回事，也不会替换 `/api/reach`。有的站点会拒绝这种探测，时间只适合互相比。
 
 ### 主题、语言、联系
 
 顶栏有自动 / 浅色 / 深色，窄屏收成图标。选择存在 `localStorage` 键 `ip-ui-theme`（`auto` | `light` | `dark`），并写到 `data-theme`、`data-theme-mode` 和 `theme-color`。一段放在 `<head>` 里的脚本会在首屏绘制前应用，避免闪一下。浅色仍是原来的米黄纸底。深色是炭黑底、奶油色描边和硬阴影。
 
-语言按钮显示的是另一种语言（中文界面上是 EN）。选择存在 `ip-ui-lang`（`zh` | `en`），默认中文。首页、指纹页和联系页都跟着切换。
+语言按钮显示的是另一种语言（中文界面上是 EN）。选择存在 `ip-ui-lang`（`zh` | `en`），默认中文。首页、被墙检测页、指纹页和联系页都跟着切换。
 
 `/contact` 和 wi.fs.kg 的联系页是同一条路径：先打开本机邮件，收件人 `i@wi.fs.kg`，主题前缀是 `[ip]`，用来和 WHOIS 站的信分开。页头写明这是 IP Lookup，信箱与 wi.fs.kg 相同。站内表单默认关着。配齐下面三个 Pages 环境变量之后，`GET /api/contact/config` 会返回 `ready: true`，页面才显示 Turnstile + 表单，并由 `POST /api/contact` 经 Resend 发到同一个信箱：
 
@@ -233,6 +233,7 @@ npx wrangler pages deploy public --project-name ip-lookup
 ```text
 public/                 页面、样式和浏览器里的查询逻辑
 public/fingerprint.html 本地浏览器指纹页
+public/gfwblock.html    被墙检测页，国内和海外连通
 public/contact.html     联系页，mailto 优先，表单等 Turnstile / Resend
 functions/api/contact.js
 functions/api/contact/config.js
@@ -242,6 +243,7 @@ functions/index.js      根路径：CLI 返回 IP，浏览器返回 HTML
 functions/json.js       /json
 functions/api/whoami.js /api/whoami
 functions/api/reach.js  /api/reach，代理 ping.pe 的 TCP 探测
+public/assets/gfw.js    被墙检测页的探测界面
 functions/_lib/         边缘字段、分流，以及 ping.pe 任务的启动和轮询
 wrangler.jsonc          Pages 项目配置
 ```

@@ -226,11 +226,14 @@ test("reach handler rejects bad targets and folds a ping.pe TCP run", async () =
   assert.equal(starts, 2);
 });
 
-test("page routes the reach function and the lookup page exposes it", () => {
+test("page routes the reach function and the GFW page exposes it", () => {
   const routes = JSON.parse(readFileSync(new URL("../public/_routes.json", import.meta.url), "utf8"));
   assert.ok(routes.include.includes("/api/reach"));
-  const html = readFileSync(new URL("../public/index.html", import.meta.url), "utf8");
+  const html = readFileSync(new URL("../public/gfwblock.html", import.meta.url), "utf8");
   assert.match(html, /id="reach"/);
   assert.match(html, /id="reachPort"/);
   assert.match(html, /value="22"/);
+  const home = readFileSync(new URL("../public/index.html", import.meta.url), "utf8");
+  assert.doesNotMatch(home, /id="reachPort"/);
+  assert.match(home, /href="\/gfwblock"/);
 });
