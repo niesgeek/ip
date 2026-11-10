@@ -10,7 +10,8 @@ import { wantsPlainText } from "../functions/_lib/negotiate.js";
 const FIELDS = [
   "ip", "type", "asn", "org", "isp", "city", "region", "country", "country_code",
   "continent", "latitude", "longitude", "postal", "timezone", "isEu", "colo",
-  "tlsVersion", "tlsCipher", "httpProtocol", "acceptLanguage", "edge", "ts",
+  "tlsVersion", "tlsCipher", "httpProtocol", "acceptLanguage",
+  "secChUa", "secChUaMobile", "secChUaPlatform", "edge", "ts",
 ];
 
 function mockRequest(url, { headers = {}, cf = {}, method = "GET" } = {}) {
@@ -43,6 +44,9 @@ test("whoami fields come from the connection and request.cf", () => {
       "cf-connecting-ip": "8.8.8.8, 1.2.3.4",
       "x-forwarded-for": "9.9.9.9",
       "accept-language": "zh-CN,zh;q=0.9",
+      "sec-ch-ua": "\"Chromium\";v=\"120\"",
+      "sec-ch-ua-mobile": "?0",
+      "sec-ch-ua-platform": "\"Linux\"",
     },
     cf: CF,
   });
@@ -61,6 +65,9 @@ test("whoami fields come from the connection and request.cf", () => {
   assert.equal(body.colo, "SJC");
   assert.equal(body.httpProtocol, "HTTP/3");
   assert.equal(body.acceptLanguage, "zh-CN,zh;q=0.9");
+  assert.equal(body.secChUa, "\"Chromium\";v=\"120\"");
+  assert.equal(body.secChUaMobile, "?0");
+  assert.equal(body.secChUaPlatform, "\"Linux\"");
   assert.equal(body.edge, true);
   assert.equal(body.ts, 1700000000000);
 });

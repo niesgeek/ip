@@ -83,6 +83,7 @@ ICMP 不走 ping.pe。那边的 ping 页面会连带对每个节点做 MTR，不
 - 子网 / CIDR 计算器：IPv4 与 IPv6。不写前缀时按 `/32` 或 `/128`。`/31` 按 RFC 3021。IPv6 的大地址总数写成 `2^n`
 - 批量查询：最多 20 个，两路并发。域名先解析再查归属地，可导出 CSV
 - 最近查询存在本机 `localStorage`，可以清除
+- 浏览器指纹页在 `/fingerprint`：本地采样大约六十项环境信号，用 SHA-256 收成指纹 ID。窗口尺寸、存储用量和网络类型不进入 ID。独特性是本地估算。不上传探针结果，也不把结果写入 `localStorage`。连接回执来自已有的 `/api/whoami`，其中没有 JA3 / JA4
 
 ## 接口
 
@@ -126,12 +127,15 @@ curl -sL https://你的域名/json?pretty
   "tlsCipher": "AEAD-AES128-GCM-SHA256",
   "httpProtocol": "HTTP/3",
   "acceptLanguage": "zh-CN",
+  "secChUa": "",
+  "secChUaMobile": "",
+  "secChUaPlatform": "",
   "edge": true,
   "ts": 1700000000000
 }
 ```
 
-上面是字段示例，不是某一次真实查询。`latitude` / `longitude` 保持 `request.cf` 的字符串形式。`ts` 是毫秒时间戳。
+上面是字段示例，不是某一次真实查询。`latitude` / `longitude` 保持 `request.cf` 的字符串形式。`ts` 是毫秒时间戳。`secChUa`、`secChUaMobile`、`secChUaPlatform` 是浏览器已经带上的低熵客户端提示；没带就是空字符串。指纹页用它们和页面里的 Client Hints 对照。探针结果不会出现在这份 JSON 里。
 
 Windows PowerShell 里的 `curl` 常常是 `Invoke-WebRequest` 的别名。请改用 `curl.exe -L https://你的域名`。
 
@@ -203,6 +207,9 @@ npx wrangler pages deploy public --project-name ip-lookup
 
 ```text
 public/                 页面、样式和浏览器里的查询逻辑
+public/fingerprint.html 本地浏览器指纹页
+public/assets/fingerprint.js
+public/assets/logic/fp-core.js  指纹 ID、估算和请求头对照（无 DOM）
 functions/index.js      根路径：CLI 返回 IP，浏览器返回 HTML
 functions/json.js       /json
 functions/api/whoami.js /api/whoami

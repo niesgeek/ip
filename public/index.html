@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
-<link rel="stylesheet" href="/assets/app.css?v=3">
+<link rel="stylesheet" href="/assets/app.css?v=4">
 </head>
 <body>
 <svg width="0" height="0" aria-hidden="true" style="position:absolute">
@@ -48,7 +48,9 @@
     <a href="#dev">终端</a>
     <a href="#faq">常见问题</a>
     <a href="#data">说明</a>
+    <a href="/fingerprint">指纹</a>
   </nav>
+  <a class="bar-fp bar-fp-mobile" href="/fingerprint">指纹</a>
   <button class="bar-me" id="barMe" type="button" title="你的公网 IP，点击复制">
     <span class="dot dot-lime"></span><span class="bar-me-ip" id="barMeIp">检测中…</span>
   </button>
@@ -59,7 +61,7 @@
     <p class="eyebrow"><span class="sq sq-violet"></span>IP Lookup · 免注册 · 无广告</p>
     <h1 class="h1">查一个 IP，<br><mark class="hl hl-pink">位置</mark>、<mark class="hl hl-sky">线路</mark>、<mark class="hl hl-lime">风险信号</mark><br>一次摊开。</h1>
     <p class="tagline"><span class="tl-key">IP</span> Lookup<span class="tl-sep">·</span><em>位置、线路、风险，一次摊开。</em></p>
-    <p class="lede">IP 或网站域名都能查，IPv4 / IPv6 都支持。查出公网地址后，还会对照国内和海外节点，看 ICMP 和你填的 TCP 端口通不通。没有广告、没有追踪脚本、没有注册墙；不想开浏览器也行——<span class="mono">curl -L <span class="site-host">本站</span></span> 直接回你的 IP，加 <span class="mono">/json</span> 回整份情报。</p>
+    <p class="lede">IP 或网站域名都能查，IPv4 / IPv6 都支持。查出公网地址后，还会对照国内和海外节点，看 ICMP 和你填的 TCP 端口通不通。没有广告、没有追踪脚本、没有注册墙；不想开浏览器也行——<span class="mono">curl -L <span class="site-host">本站</span></span> 直接回你的 IP，加 <span class="mono">/json</span> 回整份情报。设备侧的语言、屏幕和渲染测量在 <a class="foot-link" href="/fingerprint">指纹页</a>。</p>
     <form class="search" id="qForm" autocomplete="off">
       <span class="search-ico"><svg width="22" height="22"><use href="#i-search"/></svg></span>
       <input id="qInput" name="q" type="text" inputmode="text" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" readonly aria-label="要查询的 IP 地址或网站域名" placeholder="输入 IP 或网站域名，例如 8.8.8.8 / example.com">
@@ -329,6 +331,7 @@
       <li><b>公网地址与当前出口不一致</b>：代理没兜住真实出口，这一种最该处理。</li>
     </ul>
     <p class="fine">探测用的 STUN 节点是 Cloudflare 的公开服务，只用来拿到你这一侧的公网反射地址；结果留在页面上，不回传本站、不写日志。</p>
+    <p class="fine">整台设备的语言、屏幕、画布和字体测量在 <a class="foot-link" href="/fingerprint">指纹页</a>。那一页不申请摄像头、麦克风和定位，结果也不写入本地存储。</p>
   </section>
 
   <section class="cell cell-dev" id="dev">
@@ -375,6 +378,7 @@
       <li><b>服务端不落库</b>：本站没有数据库，不保存查询记录。浏览器里的历史记录存在你本机的 localStorage，可一键清除。</li>
       <li><b>风险判定</b>是启发式规则，用于帮助你判断「这是家宽还是机房」，不构成安全结论。</li>
       <li><b>连通性</b>只看此刻从若干公开节点出发，能不能 ping 通、以及指定的 TCP 端口能不能连上。国外通而国内不通，才按「被墙 / 被封」来读；两边都不通，先怀疑机器或端口本身。节点离线不算失败。探测有速率限制，太密集会被要求稍后再试。</li>
+      <li><b>指纹页</b>在浏览器本地采样，不把结果发回本站，也不写入 localStorage。独特性数字是估算，不是访客统计。</li>
     </ul>
     <button class="btn btn-ghost btn-sm" id="wipeBtn" type="button">清除本机历史记录</button>
   </section>
@@ -393,6 +397,7 @@
     <details class="qa"><summary>怎么判断一个 IP 是机房还是家庭宽带？</summary><p>看「风险信号」这一格。它根据 ASN 归属与运营商关键词做启发式判定：命中云厂商或托管商会显著加分，命中移动运营商或住宅宽带则基本不加分，最终给出 0 到 100 分与四档结论。这只是判断线路性质的线索，<b>不是实时威胁情报，也不能证明某个地址在做坏事</b>。</p></details>
     <details class="qa"><summary>可以批量查询多个 IP 吗？</summary><p>可以。把多个地址用换行、逗号或空格分隔粘贴进「批量查询」，一次最多 20 个，两路并发逐个解析，结果表格给出位置、ASN 与运营商、线路性质与数据来源，可一键导出 CSV。</p></details>
     <details class="qa"><summary>可以在命令行里用 curl 查吗？</summary><p>可以，而且不需要密钥。<span class="mono">curl -L <span class="site-host">本站</span></span> 只回一行纯文本 IP；<span class="mono">curl -sL <span class="site-host">本站</span>/json</span> 回完整 JSON，加 <span class="mono">?pretty</span> 会格式化。判断依据是 User-Agent 与 Accept：curl、wget、httpie、PowerShell 会拿到纯文本，浏览器照常拿到完整界面。</p></details>
+    <details class="qa"><summary>指纹页会把我的浏览器特征传走吗？</summary><p>不会。打开 <a class="foot-link" href="/fingerprint">/fingerprint</a> 后，采样在你的浏览器里完成，指纹 ID 用 SHA-256 在本地算出。页面只会请求本站已有的 <span class="mono">/api/whoami</span>，用来读取 TLS、线路和浏览器本来就会带上的请求头；探针取值不会放进这个请求。结果不写 Cookie，也不进 localStorage，刷新就清掉。页面不申请摄像头、麦克风或定位。</p></details>
     <details class="qa"><summary>你们会记录我的查询内容或 IP 吗？</summary><p>本站没有数据库，服务端不保存任何查询记录，页面里也没有第三方统计或广告脚本。唯一的本地存储是「最近查询」列表，它保存在你自己浏览器的 localStorage 里，可以在「数据与限制」一格中一键清除。</p></details>
   </section>
 </main>
@@ -408,6 +413,8 @@
     <span>无追踪脚本</span>
     <span class="foot-sep">/</span>
     <span>结果可分享</span>
+    <span class="foot-sep">/</span>
+    <a class="foot-link" href="/fingerprint">指纹</a>
     <span class="foot-sep">/</span>
     <a class="foot-link" href="#dev">终端接口</a>
   </div>
