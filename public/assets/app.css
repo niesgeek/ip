@@ -200,6 +200,15 @@ html.i18n-wait body{visibility:hidden}
 .cell-data{grid-column:span 4;background:var(--sky-soft)}
 .cell-priv,.cell-leak{grid-column:span 6}
 .cell-sites{grid-column:span 12;background:var(--paper-2)}
+/* 终端比「数据与限制」高一截。右边用一列叠上指纹卡，把那截空白填上，
+   数据卡本身仍按内容高度，不会被拉成空心。 */
+.side-col{
+  grid-column:span 4;
+  display:flex;flex-direction:column;gap:var(--gap);
+  min-width:0;align-self:stretch;
+}
+.cell-who{grid-column:span 6;background:var(--pink-soft)}
+.side-col .cell-fp{flex:1 1 auto}
 
 /* ---------- type ---------- */
 .eyebrow{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-70);font-family:var(--f-mono)}
@@ -531,6 +540,11 @@ html[lang="en"] .kv-2 .kv-row{padding:6px 2px}
 .notes li b{color:var(--ink);font-weight:700}
 .notes-tight li{font-size:12px}
 .notes-tight{gap:6px}
+/* 数据与限制条目变多之后，行距收紧，避免这一格被行高撑得发空 */
+.cell-data{gap:10px}
+.cell-data .notes{gap:4px}
+.cell-data .notes li{line-height:1.42}
+.cell-data .notes li::before{top:4px}
 
 /* ---------- 终端块（开发者区） ---------- */
 .term{
@@ -553,6 +567,11 @@ html[lang="en"] .kv-2 .kv-row{padding:6px 2px}
   font-family:var(--f-mono);font-size:12.5px;line-height:1.72;
   color:#EBF9C9;-webkit-overflow-scrolling:touch;
 }
+/* 终端要比右边「数据与限制 + 指纹卡」稍长一点，只拉开这一格，不改别的终端块 */
+.cell-dev{gap:16px}
+.cell-dev .term-body{line-height:1.95;padding:18px 18px 22px}
+.cell-dev .notes-tight{gap:10px}
+.cell-dev .notes-tight li{line-height:1.65}
 .term-body code{font-family:inherit}
 .t-c{color:rgba(255,249,236,.42)}      /* 注释 */
 .t-p{color:var(--pink);font-weight:700;user-select:none}  /* 提示符 */
@@ -749,9 +768,35 @@ html[lang="en"] .kv-2 .kv-row{padding:6px 2px}
 .reach-bad{color:var(--coral);font-family:var(--f-mono);font-size:12px;white-space:nowrap}
 #reachGo{align-self:flex-end}
 
+/* ---------- 姊妹站 / 姊妹页 ---------- */
+.promo-kicker{
+  align-self:flex-start;display:inline-flex;align-items:center;max-width:100%;
+  font-family:var(--f-mono);font-size:11px;font-weight:700;letter-spacing:.03em;line-height:1.3;
+  padding:4px 10px;border-radius:999px;border:var(--bd-sm) solid var(--ink);
+  background:var(--violet);color:#FFF9EC;box-shadow:2px 2px 0 var(--ink);
+}
+.promo-title{font-size:clamp(26px,2.5vw,34px);letter-spacing:-.03em;line-height:1.05}
+.cell-fp .promo-title{font-size:clamp(20px,2vw,24px)}
+.promo-pitch{font-size:13.5px;line-height:1.6;color:var(--ink-70);overflow-wrap:anywhere}
+.promo-pitch b{color:var(--ink);font-weight:700}
+.cell-fp{background:var(--lime-soft);padding:clamp(14px,1.6vw,18px);gap:10px}
+.cell-fp .promo-pitch{font-size:12.5px;line-height:1.5}
+.promo-tags{display:flex;flex-wrap:wrap;gap:6px}
+.promo-tag{
+  font-family:var(--f-mono);font-size:11px;font-weight:700;letter-spacing:.02em;line-height:1.3;
+  padding:3px 8px;border-radius:999px;border:var(--bd-sm) solid var(--ink);
+  background:var(--card);color:var(--ink);box-shadow:2px 2px 0 var(--ink);
+}
+.promo-cta{
+  margin-top:auto;align-self:flex-start;display:inline-flex;align-items:center;gap:8px;
+  font-weight:700;font-size:14.5px;border-bottom:2px solid var(--ink);padding-bottom:1px;
+}
+.cell-fp .promo-cta{font-size:13.5px}
+.promo-arrow{font-family:var(--f-mono);font-weight:700}
+
 /* ---------- responsive ---------- */
 @media (max-width:1120px){
-  .cell-hero,.cell-myip,.cell-detail,.cell-map,.cell-dnsrec,.cell-risk,.cell-batch,.cell-clock,.cell-facts,.cell-cidr,.cell-priv,.cell-leak,.cell-sites,.cell-dev,.cell-data{grid-column:span 12}
+  .cell-hero,.cell-myip,.cell-detail,.cell-map,.cell-dnsrec,.cell-risk,.cell-batch,.cell-clock,.cell-facts,.cell-cidr,.cell-priv,.cell-leak,.cell-sites,.cell-dev,.cell-data,.cell-who,.side-col{grid-column:span 12}
   /* 单列之后跨行会把下一行顶空，必须放掉 */
   .cell-detail{grid-row:auto}
   .cell-clock{grid-column:span 6}
