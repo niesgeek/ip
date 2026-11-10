@@ -82,7 +82,7 @@
 </header>
 
 <div class="fp-sticky" id="fpSticky" hidden>
-  <span class="fp-sticky-k mono">指纹 ID</span>
+  <span class="fp-sticky-k mono" data-en="Fingerprint ID">指纹 ID</span>
   <span class="fp-sticky-id mono" id="fpStickyId">…</span>
   <span class="fp-sticky-band" id="fpStickyBand"></span>
   <button class="btn btn-primary btn-sm" id="fpStickyRun" type="button">再测一次</button>
@@ -90,9 +90,9 @@
 
 <main class="fp">
   <header class="fp-intro">
-    <p class="eyebrow"><span class="sq sq-violet"></span>本地采样 · 不上传 · 刷新即清</p>
-    <h1 class="h1">大约六十项环境信号，<br>收成一个<mark class="hl hl-pink">指纹 ID</mark>。</h1>
-    <p class="lede">浏览器为了排版和选择功能，本来就会说出语言、时区、屏幕、核心数，以及画布、显卡和字体量出来的差别。这些事实拼在一起，就能在没有 Cookie 的情况下把两台设备分开。这一页把它们摊开，用 SHA-256 收成一个 ID。窗口大小、存储用量和网络类型会变，只参与估算，不写进 ID。结果留在这一页的内存里，刷新就没有了。</p>
+    <p class="eyebrow"><span class="sq sq-violet"></span><span data-en="Local sample · not uploaded · gone on refresh">本地采样 · 不上传 · 刷新即清</span></p>
+    <h1 class="h1" data-en-html="About sixty environment signals,<br>folded into one <mark class=&quot;hl hl-pink&quot;>fingerprint ID</mark>.">大约六十项环境信号，<br>收成一个<mark class="hl hl-pink">指纹 ID</mark>。</h1>
+    <p class="lede" data-en="To lay out a page and choose features, a browser already reports language, time zone, screen, core count, and differences measured from canvas, graphics, and fonts. Together those facts can separate two devices without a cookie. This page lays them out and folds them into a SHA-256 ID. Window size, storage use, and network type change, so they only affect the estimate and stay out of the ID. The result lives in this page’s memory and is gone after a refresh.">浏览器为了排版和选择功能，本来就会说出语言、时区、屏幕、核心数，以及画布、显卡和字体量出来的差别。这些事实拼在一起，就能在没有 Cookie 的情况下把两台设备分开。这一页把它们摊开，用 SHA-256 收成一个 ID。窗口大小、存储用量和网络类型会变，只参与估算，不写进 ID。结果留在这一页的内存里，刷新就没有了。</p>
   </header>
 
   <section class="fp-hero" id="fpHero" aria-labelledby="fpIdLabel">
