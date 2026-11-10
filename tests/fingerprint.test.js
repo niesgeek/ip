@@ -130,11 +130,110 @@ test("portrait only mentions values that were actually collected", () => {
   assert.match(text, /America\/Los_Angeles/);
   assert.match(text, /LAX/);
   assert.match(text, /没有拿到 WebGL/);
+  assert.match(text, /Linux x86_64/);
   assert.doesNotMatch(text, /标的位置/);
   assert.doesNotMatch(text, /摄像头|麦克风|定位/);
+  assert.doesNotMatch(text, /Lanzhou|上海的书桌|你在上海/);
   const noCity = buildPortrait(signals, { timezone: "Asia/Shanghai" }).join("\n");
   assert.match(noCity, /连接回执里的时区也是 Asia\/Shanghai/);
   assert.doesNotMatch(noCity, /标的位置/);
+});
+
+test("portrait talks in short spoken sentences and keeps the caveats", () => {
+  const signals = [
+    makeSignal({ id: "lang", value: "zh-CN", status: "ok", hash: "zh-CN" }),
+    makeSignal({ id: "langs", value: "zh-CN, zh, en", status: "ok", hash: "zh-CN,zh,en" }),
+    makeSignal({ id: "tz", value: "Asia/Shanghai", status: "ok", hash: "Asia/Shanghai" }),
+    makeSignal({ id: "tz-offset", value: "UTC+08:00", status: "ok", hash: "480" }),
+    makeSignal({ id: "ua-platform", value: "Windows", status: "ok", hash: "Windows" }),
+    makeSignal({ id: "ua", value: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/154.0.8037.98", status: "ok", hash: "ua" }),
+    makeSignal({ id: "ua-full", value: "154.0.8037.98", status: "ok", hash: "154" }),
+    makeSignal({ id: "ua-brands", value: "Chromium/154 Google Chrome/154", status: "ok", hash: "brands" }),
+    makeSignal({ id: "screen", value: "2560×1440", status: "ok", hash: "2560x1440" }),
+    makeSignal({ id: "dpr", value: "1x", status: "ok", hash: "1" }),
+    makeSignal({ id: "cores", value: "12", status: "ok", hash: "12" }),
+    makeSignal({ id: "memory", value: "32 GB", status: "ok", hash: "32" }),
+    makeSignal({ id: "webgl-renderer", value: "Microsoft Basic Render Driver", status: "ok", hash: "gpu" }),
+    makeSignal({ id: "canvas", value: "已采样", status: "ok", hash: "c" }),
+    makeSignal({ id: "audio", value: "已采样", status: "ok", hash: "a" }),
+    makeSignal({ id: "fonts", value: "12 / 40 款和回退字体宽度不同", status: "ok", hash: "f" }),
+    makeSignal({ id: "scheme", value: "light", status: "ok", hash: "light" }),
+    makeSignal({ id: "lang-header", value: "和页面一致", status: "ok", hash: "exact" }),
+    makeSignal({ id: "ua-header", value: "和页面里的品牌一致", status: "ok", hash: "exact" }),
+  ];
+  const text = buildPortrait(signals, {
+    city: "Lanzhou",
+    country: "CN",
+    timezone: "Asia/Shanghai",
+    asn: 4134,
+    org: "Chinanet",
+    colo: "SJC",
+  }, {
+    id: "64d09f697d39732d8fcb6f9fabcdefabcdefabcdefabcdefabcdefab",
+    now: new Date("2026-11-10T06:43:00Z"),
+  }).join("\n");
+  assert.match(text, /浏览器把语言设成了中文/);
+  assert.match(text, /zh-CN/);
+  assert.match(text, /英文/);
+  assert.match(text, /不能说明你人在上海/);
+  assert.match(text, /Lanzhou，中国/);
+  assert.match(text, /书桌/);
+  assert.match(text, /周二 14:43/);
+  assert.match(text, /Windows 10 或 11/);
+  assert.match(text, /Chrome/);
+  assert.match(text, /154\.0\.8037\.98/);
+  assert.match(text, /2560×1440/);
+  assert.match(text, /像素比是 1 倍/);
+  assert.match(text, /Microsoft Basic Render Driver/);
+  assert.match(text, /逻辑核心 12 个/);
+  assert.match(text, /32 GB/);
+  assert.match(text, /粗档/);
+  assert.match(text, /中国电信/);
+  assert.match(text, /AS4134/);
+  assert.match(text, /家里或公司的宽带/);
+  assert.match(text, /语言是同一套/);
+  assert.match(text, /浅色/);
+  assert.match(text, /清掉 Cookie/);
+  assert.match(text, /也不猜/);
+  assert.match(text, /64d09f69 7d39732d 8fcb6f9f/);
+  assert.match(text, /没写进这个 ID/);
+  assert.match(text, /没有额外去查你/);
+  assert.doesNotMatch(text, /；/);
+  assert.doesNotMatch(text, /近乎唯一/);
+  assert.doesNotMatch(text, /首选语言 zh-CN/);
+  assert.doesNotMatch(text, /年龄是|职业是|你是工程师/);
+  assert.doesNotMatch(text, /摄像头|麦克风|定位/);
+});
+
+test("portrait fallbacks stay quiet when signals are missing", () => {
+  const signals = [
+    makeSignal({ id: "lang", value: "", status: "absent", hash: "absent" }),
+    makeSignal({ id: "tz", value: "Europe/Berlin", status: "ok", hash: "Europe/Berlin" }),
+    makeSignal({ id: "canvas", value: "画布被拦住", status: "blocked", hash: "blocked" }),
+    makeSignal({ id: "webgl-renderer", value: "", status: "absent", hash: "absent" }),
+  ];
+  const bare = buildPortrait(signals, { colo: "FRA", org: "Example Net", asn: 65536 }).join("\n");
+  assert.match(bare, /没给出语言/);
+  assert.match(bare, /Europe\/Berlin/);
+  assert.match(bare, /画布被拦住了/);
+  assert.match(bare, /没有拿到 WebGL/);
+  assert.match(bare, /FRA/);
+  assert.match(bare, /Example Net/);
+  assert.doesNotMatch(bare, /家里或公司的宽带|住宅/);
+  assert.doesNotMatch(bare, /Berlin，|你在柏林/);
+  const empty = buildPortrait([], null).join("\n");
+  assert.match(empty, /没采到多少能说出口的读数/);
+  assert.match(empty, /也不猜/);
+  assert.doesNotMatch(empty, /指纹 ID 是/);
+  const noId = buildPortrait(signals, null, { id: "" }).join("\n");
+  assert.match(noId, /没能把读数收成指纹 ID/);
+  const offline = buildPortrait([
+    makeSignal({ id: "tz", value: "UTC", status: "ok", hash: "UTC" }),
+    makeSignal({ id: "lang-header", value: "没有回执", status: "blocked", hash: "blocked" }),
+    makeSignal({ id: "ua-header", value: "没有回执", status: "blocked", hash: "blocked" }),
+  ], null).join("\n");
+  assert.match(offline, /出口位置这一轮没读到/);
+  assert.doesNotMatch(offline, /对不上|被拦住/);
 });
 
 test("sha256 of an empty payload is the standard digest", async () => {
@@ -150,6 +249,14 @@ test("pages link the fingerprint view and do not upload or persist it", () => {
   const source = readFileSync(new URL("../public/assets/fingerprint.js", import.meta.url), "utf8");
   assert.match(home, /href="\/fingerprint"/);
   assert.match(page, /href="\/"/);
+  assert.match(page, /网站眼里的你/);
+  assert.match(page, /点击展开查看/);
+  assert.match(page, /这些数字怎么来的/);
+  assert.match(page, /每一项有一个事先写好的权重/);
+  const css = readFileSync(new URL("../public/assets/fingerprint.css", import.meta.url), "utf8");
+  assert.match(css, /#fpList\{display:flex;flex-direction:column;gap:22px\}/);
+  assert.match(css, /\.fp-vnote-hint\{/);
+  assert.match(css, /\.fp-chevron\{/);
   assert.match(page, /\/api\/whoami/);
   assert.doesNotMatch(source, /fingerprintjs|FingerprintJS|getUserMedia|getCurrentPosition/i);
   assert.match(source, /ip-lookup\.storage-probe/);
