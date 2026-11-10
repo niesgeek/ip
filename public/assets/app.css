@@ -101,6 +101,17 @@ svg{display:block;flex:none}
   max-width:min(46vw,300px);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;
 }
 .bar-me:hover{transform:translate(-1px,-1px);box-shadow:var(--sh-sm)}
+.bar-fp{
+  display:inline-flex;align-items:center;flex:none;
+  padding:6px 12px;border-radius:999px;
+  border:var(--bd-sm) solid var(--ink);
+  background:var(--pink);color:var(--ink);
+  font-size:13px;font-weight:700;
+  box-shadow:var(--sh-xs);
+  transition:transform .16s,box-shadow .16s;
+}
+.bar-fp:hover{transform:translate(-1px,-1px);box-shadow:var(--sh-sm)}
+.bar-fp-mobile{display:none}
 /* 语言切换：贴在右上角，和 IP 药丸同一排。
    小屏只留国旗——两个药丸挤在一行会把导航压没。 */
 .lang{
@@ -720,6 +731,7 @@ html[lang="en"] .kv-2 .kv-row{padding:6px 2px}
 }
 @media (max-width:860px){
   .bar-nav{display:none}
+  .bar-fp-mobile{display:inline-flex}
   .kv-2{grid-template-columns:1fr}
   .reach-grid{grid-template-columns:1fr}
 }

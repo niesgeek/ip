@@ -72,6 +72,9 @@ export function buildWhoami(request, now = Date.now()) {
     tlsCipher: textOrNull(cf.tlsCipher),
     httpProtocol: textOrNull(cf.httpProtocol),
     acceptLanguage: request.headers.get("accept-language") || "",
+    secChUa: request.headers.get("sec-ch-ua") || "",
+    secChUaMobile: request.headers.get("sec-ch-ua-mobile") || "",
+    secChUaPlatform: request.headers.get("sec-ch-ua-platform") || "",
     edge: true,
     ts: now,
   };

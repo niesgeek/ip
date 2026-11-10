@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>浏览器指纹 · 本地查看环境信号 | IP Lookup</title>
+<meta name="description" content="在你自己的浏览器里查看大约六十项环境信号，并用 SHA-256 收成一个指纹 ID。可以再测一次、逐项对比。读数不上传，也不写入本地存储。">
+<meta name="robots" content="index,follow">
+<meta name="theme-color" content="#F5EFE1">
+<meta name="referrer" content="no-referrer">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="/assets/app.css?v=4">
+<link rel="stylesheet" href="/assets/fingerprint.css?v=1">
+</head>
+<body>
+<svg width="0" height="0" aria-hidden="true" style="position:absolute">
+  <defs>
+    <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M3 12h18M12 3c2.6 2.6 2.6 15.4 0 18M12 3c-2.6 2.6-2.6 15.4 0 18" fill="none" stroke="currentColor" stroke-width="2.2"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2.5" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M15.5 5.5A2.5 2.5 0 0 0 13 3H6.5A2.5 2.5 0 0 0 4 5.5V13a2.5 2.5 0 0 0 2.5 2.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 4v13M6 12.5 12 18.5l6-6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M12 11v6M12 7.4v.2" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2.6"/><path d="M15.6 15.6 21 21" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3 5 5.6v5.2c0 4.6 2.9 8 7 10.2 4.1-2.2 7-5.6 7-10.2V5.6L12 3Z" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/><path d="M9 12.2l2.2 2.2L15.4 10" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  </defs>
+</svg>
+
+<header class="bar">
+  <a class="brand" href="/" aria-label="IP Lookup 首页">
+    <span class="brand-mark"><svg width="20" height="20"><use href="#i-globe"/></svg></span>
+    <span class="brand-txt">IP<em>.</em>Lookup</span>
+  </a>
+  <a class="bar-fp" href="/">返回查询</a>
+  <button class="bar-me" id="barMe" type="button" title="你的公网 IP，点击复制">
+    <span class="dot dot-lime"></span><span class="bar-me-ip" id="barMeIp">读取中…</span>
+  </button>
+</header>
+
+<div class="fp-sticky" id="fpSticky" hidden>
+  <span class="fp-sticky-k mono">指纹 ID</span>
+  <span class="fp-sticky-id mono" id="fpStickyId">…</span>
+  <span class="fp-sticky-band" id="fpStickyBand"></span>
+  <button class="btn btn-primary btn-sm" id="fpStickyRun" type="button">再测一次</button>
+</div>
+
+<main class="fp">
+  <header class="fp-intro">
+    <p class="eyebrow"><span class="sq sq-violet"></span>本地采样 · 不上传 · 刷新即清</p>
+    <h1 class="h1">大约六十项环境信号，<br>收成一个<mark class="hl hl-pink">指纹 ID</mark>。</h1>
+    <p class="lede">浏览器为了排版和选择功能，本来就会说出语言、时区、屏幕、核心数，以及画布、显卡和字体量出来的差别。这些事实拼在一起，就能在没有 Cookie 的情况下把两台设备分开。这一页把它们摊开，用 SHA-256 收成一个 ID。窗口大小、存储用量和网络类型会变，只参与估算，不写进 ID。结果留在这一页的内存里，刷新就没有了。</p>
+  </header>
+
+  <section class="fp-hero" id="fpHero" aria-labelledby="fpIdLabel">
+    <div class="fp-hero-main">
+      <p class="fp-k" id="fpIdLabel">指纹 ID <span id="fpAlgo">SHA-256 · 前 24 位</span></p>
+      <p class="fp-id mono" id="fpId">采样中…</p>
+      <p class="fp-id-full mono" id="fpIdFull" hidden></p>
+      <button class="fp-reveal" id="fpIdMore" type="button" hidden aria-expanded="false" aria-controls="fpIdFull">看完整哈希</button>
+      <p class="fp-when" id="fpTs"></p>
+    </div>
+    <div class="fp-hero-actions">
+      <button class="btn btn-primary btn-sm" id="fpRun" type="button" disabled>采样中…</button>
+      <button class="btn btn-ghost btn-sm" id="fpCopy" type="button" disabled><svg width="14" height="14" aria-hidden="true"><use href="#i-copy"/></svg>复制 ID</button>
+      <button class="btn btn-ghost btn-sm" id="fpExport" type="button" disabled><svg width="14" height="14" aria-hidden="true"><use href="#i-down"/></svg>导出 JSON</button>
+    </div>
+    <p class="status" id="fpStatus" aria-live="polite"><span class="dot dot-grey"></span><span id="fpStatusText">正在这台设备上采样…</span></p>
+  </section>
+
+  <section class="fp-verdict" aria-label="本地估算">
+    <div class="fp-vcard fp-vcard-band">
+      <p class="fp-k">独特性</p>
+      <p class="fp-band" id="fpBand">采样中</p>
+      <p class="fp-band-d" id="fpBandDetail">权重还没加总。</p>
+    </div>
+    <div class="fp-vcard">
+      <p class="fp-k">撞车估算</p>
+      <p class="fp-odds" id="fpOdds">—</p>
+      <p class="fine">按各项权重在这台设备上加总。不是实测访客比例。</p>
+    </div>
+    <details class="fp-vnote">
+      <summary>这些数字怎么来的</summary>
+      <p id="fpSummary">采样完成后，这里会写出取得、未提供、被拦住和易变各有多少。</p>
+      <p class="fine">每一项有一个事先写好的权重。已取得的算全额，易变项算一半，未提供和被拦住的不算进信息量，但「浏览器没给」仍然会进入指纹 ID。各项其实常常一起出现，所以真实撞车会比这个估算更多。本站不保存访客，给不出实测比例。</p>
+    </details>
+  </section>
+
+  <section class="fp-portrait" id="fpPortrait" hidden aria-labelledby="fpPortraitLabel">
+    <div class="fp-portrait-h">
+      <p class="fp-k" id="fpPortraitLabel">用读数写成的一段话</p>
+      <div class="fp-portrait-actions">
+        <button class="btn btn-ghost btn-sm" id="fpPortraitMore" type="button" hidden aria-expanded="false">展开全文</button>
+        <button class="btn btn-ghost btn-sm" id="fpShare" type="button"><svg width="14" height="14" aria-hidden="true"><use href="#i-copy"/></svg>复制这段</button>
+      </div>
+    </div>
+    <div class="fp-portrait-txt" id="fpPortraitText"></div>
+    <p class="fine">句子只使用上面已经拿到的值。没有读到的东西不会被写成事实。</p>
+  </section>
+
+  <div class="stats fp-stats" id="fpStats"></div>
+
+  <div class="fp-tools">
+    <nav class="fp-tabs" id="fpTabs" aria-label="按分组筛选"></nav>
+    <div class="fp-tools-row">
+      <label class="fp-search">
+        <svg width="15" height="15" aria-hidden="true"><use href="#i-search"/></svg>
+        <input id="fpSearch" type="search" placeholder="搜索名称或取值" autocomplete="off" aria-label="搜索信号">
+        <button class="fp-search-clear" id="fpSearchClear" type="button" hidden aria-label="清空搜索">×</button>
+      </label>
+      <button class="fp-tbtn" id="fpChanged" type="button" aria-pressed="false" disabled>只看变化</button>
+      <button class="fp-tbtn" id="fpExpand" type="button">展开全部详情</button>
+      <button class="fp-tbtn" id="fpGroups" type="button">收起全部分组</button>
+    </div>
+    <p class="fp-legend">圆点是状态：<span class="fp-dot fp-dot-ok"></span>已取得 <span class="fp-dot fp-dot-absent"></span>未提供 <span class="fp-dot fp-dot-blocked"></span>被拦住 <span class="fp-dot fp-dot-volatile"></span>易变。右侧细条是估算权重，越长越能把设备分开。易变项不进入指纹 ID。点一行看原文，点分组标题可折叠。</p>
+    <p class="fp-count" id="fpCount" hidden>显示 <b class="mono" id="fpCountN">0 / 0</b> 项</p>
+  </div>
+
+  <section class="fp-diff" id="fpDiff" hidden aria-live="polite">
+    <b>和上一轮相比</b>
+    <p id="fpDiffText"></p>
+  </section>
+
+  <div id="fpList"><p class="fp-empty">正在本地采样…</p></div>
+
+  <section class="fp-about">
+    <h2 class="h2"><svg width="18" height="18" aria-hidden="true"><use href="#i-info"/></svg>指纹是什么</h2>
+    <p>没有一项需要你点同意。浏览器要正确显示网页，就得知道像素比、语言和自己支持哪些接口。网站把这些已经存在的事实收起来做成哈希，就可以在你换了 IP、清了 Cookie 之后，仍然看出是不是同一台环境。它不是存在你机器上的一个文件，所以也没有一个开关能把它「清掉」。</p>
+    <p>这一页最稳的是渲染那一组：同一套图形画出来的像素、WebGL 报出的参数、离线音频的几个样本、候选字体的宽度、若干盒子的布局尺寸。它们取决于显卡、驱动、字体和内核，不是一个可以随便勾选的偏好。</p>
+    <p>两次 ID 相同，只说明这些稳定项没变；ID 变了，也只说明其中某一项变了。要判断一个网站能不能认出你，还得看对方服务器上的数据。这一页做不到那件事。</p>
+
+    <h2 class="h2"><svg width="18" height="18" aria-hidden="true"><use href="#i-shield"/></svg>这一页自己做了什么</h2>
+    <ul class="notes">
+      <li><b>只请求本站已有的接口。</b>采样时会 GET <span class="mono">/api/whoami</span>，和首页读你的连接是同一份实现。探针的取值不会放进这个请求，也不会发到别的域名。</li>
+      <li><b>不申请权限。</b>不调用摄像头、麦克风和定位。权限那一行只查询当前状态。响应头里也关掉了这三项，避免误弹窗。</li>
+      <li><b>不留下结果。</b>不写 Cookie，也不把指纹 ID 放进 localStorage。再测一次只和这一页内存里的上一轮比较，刷新就清掉。</li>
+      <li><b>易变项不进 ID。</b>窗口尺寸、存储已用量、网络类型估计会列出来，并按一半计入估算，但不会改掉指纹 ID。所以再测一次仍然有意义。</li>
+    </ul>
+    <div class="fp-limit">
+      <svg width="18" height="18" aria-hidden="true"><use href="#i-info"/></svg>
+      <p><b>这一页明确不做的事。</b>没有 JA3 / JA4：那要看 TLS Client Hello，<span class="mono">/api/whoami</span> 不返回这个字段，Cloudflare Pages 的免费环境通常也不提供。没有把同一套探针放进 iframe 或 Worker 再对一遍。没有实测的访客比例，上面的百分比是权重估算。</p>
+    </div>
+
+    <details class="qa">
+      <summary>再测一次在比什么？</summary>
+      <p>把全部信号再采一遍，和这一页里留着的上一轮逐项比较。变了的行会标出来，顶部会说明指纹 ID 变没变。窗口大小这类易变项变了而 ID 没变，是预期结果。这只是同一台设备的两次快照，不能证明某个网站会把你认成同一个人。</p>
+    </details>
+    <details class="qa">
+      <summary>为什么有的项是「未提供」或「被拦住」？</summary>
+      <p>未提供表示这个浏览器没有那个接口，例如不少浏览器不实现 <span class="mono">navigator.userAgentData</span>。被拦住表示接口在，但读的时候被拒绝。两种都不是页面坏了。「不给」本身也会进入指纹 ID，因为这也是一种差别。摄像头、麦克风和定位被本页的策略关掉，查询结果会写成站点策略拦住，不是你刚点了拒绝。</p>
+    </details>
+    <details class="qa">
+      <summary>这和首页的浏览器暴露自查是什么关系？</summary>
+      <p>首页那一格看的是 WebRTC 会不会绕过代理，把真实出口地址交出去，而且只有你点了才跑。这一页看的是设备侧已经公开的环境信号，打开就会采样。两边都不把结果上传。</p>
+    </details>
+    <details class="qa">
+      <summary>撞车数字能不能当成统计？</summary>
+      <p>不能。它假设各项互相独立，再按事先写好的权重换成一个数量级。真实用户的屏幕、内核和时区经常一起相同，所以实际相同的人会更多。本站没有访客库，不会出现「多少访问者里有几个和你一样」这种句子。</p>
+    </details>
+  </section>
+
+  <section class="fp-next" aria-label="相关页面">
+    <a class="fp-next-card" href="/">
+      <span class="fp-k">回到首页</span>
+      <strong>IP 与域名查询</strong>
+      <span>位置、线路、风险和国内外连通，还是在原来那一页。</span>
+    </a>
+    <a class="fp-next-card" href="/#privacy">
+      <span class="fp-k">配套的一格</span>
+      <strong>浏览器暴露自查</strong>
+      <span>WebRTC 会不会把真实出口地址直接交出去。</span>
+    </a>
+    <a class="fp-next-card" href="/#dev">
+      <span class="fp-k">同一份连接数据</span>
+      <strong>终端里的 /json</strong>
+      <span>这一页「连接回执」用的就是 curl 拿到的那份 JSON。</span>
+    </a>
+  </section>
+</main>
+
+<footer class="foot">
+  <div class="foot-l">
+    <span class="brand-mark brand-mark-sm"><svg width="16" height="16"><use href="#i-globe"/></svg></span>
+    <span class="mono">IP Lookup</span>
+    <span class="foot-sep">/</span>
+    <a class="foot-link" href="/">返回查询</a>
+  </div>
+  <div class="foot-r">
+    <span>结果不上传</span>
+    <span class="foot-sep">/</span>
+    <span>刷新即清</span>
+  </div>
+</footer>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<noscript><p class="fp-noscript">需要启用 JavaScript。采样在你的浏览器里进行，不会改到服务器上的数据。</p></noscript>
+<script type="module" src="/assets/fingerprint.js?v=1"></script>
+</body>
+</html>
