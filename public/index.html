@@ -41,7 +41,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
-<link rel="stylesheet" href="/assets/app.css?v=7">
+<link rel="stylesheet" href="/assets/app.css?v=8">
 </head>
 <body>
 <svg width="0" height="0" aria-hidden="true" style="position:absolute">
@@ -384,6 +384,19 @@
     <p class="fine" data-en="This asks edns.ip-api.com up to three times and names that service in the result. It is one sample of the system resolver, not a full leak audit, and not the in-depth test that runs on someone else’s own nameservers.">这一格会向 edns.ip-api.com 最多问三次，界面上写明对方是 ip-api.com。它只采样此刻系统解析器露出来的地址，不是一份完整泄漏名单，也不是别人用自建权威服务器做的深度测试。</p>
   </section>
 
+  <a class="cell cell-who" id="whois" href="https://wi.fs.kg" target="_blank" rel="noopener noreferrer" title="在新标签页打开 wi.fs.kg" data-en-title="Opens wi.fs.kg in a new tab">
+    <span class="promo-kicker" data-en="Sister site · domain WHOIS">姊妹站 · 域名 WHOIS</span>
+    <h2 class="promo-title">wi.fs.kg</h2>
+    <p class="promo-pitch" data-en-html="Look up a domain and see <b>owner, status, and expiry</b> in one view. Registration status, registrar, nameservers, and contacts come back as the same fields. <b>RDAP first</b>, WHOIS only when that suffix has no RDAP server. No account, no ads, no tracking scripts.">查一个域名，<b>归属、状态、到期日</b>一次看清。注册状态、注册商、名称服务器和联系人收成同一套字段，<b>RDAP 优先</b>，没有 RDAP 再退回 WHOIS。免注册，无广告，无追踪脚本。</p>
+    <span class="promo-tags">
+      <span class="promo-tag" data-en="Record">注册档案</span>
+      <span class="promo-tag" data-en="Nameservers">名称服务器</span>
+      <span class="promo-tag" data-en="Batch">批量</span>
+      <span class="promo-tag">curl</span>
+    </span>
+    <span class="promo-cta"><span data-en="Open WHOIS">去查 WHOIS</span><span class="promo-arrow" aria-hidden="true">→</span></span>
+  </a>
+
   <section class="cell cell-sites" id="sites">
     <div class="cell-head">
       <h2 class="h2"><svg width="18" height="18"><use href="#i-target"/></svg><span data-en="Sites this device can open">本机常用网站连通</span></h2>
@@ -421,7 +434,10 @@
 <span class="t-o">}</span>
 
 <span class="t-c"># 不想用 curl 也行</span>
-<span class="t-p">$</span> wget -qO- <span class="site-host">本站</span></code></pre>
+<span class="t-p">$</span> wget -qO- <span class="site-host">本站</span>
+
+<span class="t-c" data-en="# the path this page reads. Same fields as /json"># 页面读的是这一条。字段和 /json 完全一致</span>
+<span class="t-p">$</span> curl -sL <span class="site-host">本站</span>/api/whoami</code></pre>
     </div>
     <ul class="notes notes-tight">
       <li><b>纯文本优先</b>：用 curl / wget / httpie 访问根路径，返回的就是一行 IP，不夹 HTML。浏览器访问照常拿到完整界面，两边互不打扰。</li>
@@ -431,6 +447,7 @@
     </ul>
   </section>
 
+  <div class="side-col">
   <section class="cell cell-data" id="data">
     <div class="cell-head"><h2 class="h2"><svg width="18" height="18"><use href="#i-info"/></svg>数据与限制</h2></div>
     <ul class="notes">
@@ -444,6 +461,20 @@
     </ul>
     <button class="btn btn-ghost btn-sm" id="wipeBtn" type="button">清除本机历史记录</button>
   </section>
+
+  <a class="cell cell-fp" id="fpcard" href="/fingerprint">
+    <span class="promo-kicker" data-en="Sister page · on this device">姊妹页 · 本机采样</span>
+    <h2 class="promo-title" data-en="Browser fingerprint">浏览器指纹</h2>
+    <p class="promo-pitch" data-en-html="About sixty environment signals, folded in this browser into a <b>SHA-256 fingerprint ID</b>, and a short portrait of <b>what a site already sees</b>. No camera, microphone, or location. The ID is <b>not written to localStorage</b>.">大约六十项环境信号，在这台浏览器里收成一个 <b>SHA-256 指纹 ID</b>，并写成一段「<b>网站眼里的你</b>」。不调用摄像头、麦克风和定位，ID <b>不写入 localStorage</b>。</p>
+    <span class="promo-tags">
+      <span class="promo-tag" data-en="Local only">本地采样</span>
+      <span class="promo-tag">SHA-256</span>
+      <span class="promo-tag" data-en="Not uploaded">不上传</span>
+      <span class="promo-tag" data-en="Gone on refresh">刷新即清</span>
+    </span>
+    <span class="promo-cta"><span data-en="See this machine">看这台机器</span><span class="promo-arrow" aria-hidden="true">→</span></span>
+  </a>
+  </div>
 
   <section class="cell cell-faq" id="faq">
     <div class="cell-head"><h2 class="h2"><svg width="18" height="18"><use href="#i-info"/></svg>常见问题</h2></div>
