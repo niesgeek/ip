@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title data-en="Contact · IP Lookup">联系 · IP Lookup</title>
+<meta name="description" data-en="The form is not enabled on this deploy, and the page will not pretend a note was sent. Write to i@wi.fs.kg. The subject is prefixed with [ip] so it is clear the mail came from the IP site." content="站内留言表单还没开通，不会假装已经发出。直接发邮件到 i@wi.fs.kg，主题带 [ip]，看得出信是从 IP 站来的。">
+<meta name="robots" content="index,follow">
+<meta name="theme-color" content="#F5EFE1">
+<meta name="color-scheme" content="light">
+<script>
+(function () {
+  var mode = "auto";
+  var prefersDark = false;
+  try {
+    var raw = localStorage.getItem("ip-ui-theme");
+    if (raw === "light" || raw === "dark" || raw === "auto") mode = raw;
+  } catch (e) {}
+  try { prefersDark = matchMedia("(prefers-color-scheme: dark)").matches; } catch (e) {}
+  var dark = mode === "dark" || (mode !== "light" && prefersDark);
+  var root = document.documentElement;
+  root.setAttribute("data-theme", dark ? "dark" : "light");
+  root.setAttribute("data-theme-mode", mode);
+  var color = document.querySelector('meta[name="theme-color"]');
+  if (color) color.setAttribute("content", dark ? "#12110e" : "#F5EFE1");
+  var scheme = document.querySelector('meta[name="color-scheme"]');
+  if (scheme) scheme.setAttribute("content", dark ? "dark" : "light");
+  var lang = "zh";
+  try {
+    var saved = localStorage.getItem("ip-ui-lang");
+    if (saved === "en" || saved === "zh") lang = saved;
+  } catch (e) {}
+  root.lang = lang === "en" ? "en" : "zh-CN";
+  if (lang === "en") root.classList.add("i18n-wait");
+  setTimeout(function () { root.classList.remove("i18n-wait"); }, 2500);
+})();
+</script>
+<style>html.i18n-wait body{visibility:hidden}</style>
+<meta name="referrer" content="no-referrer">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="/assets/app.css?v=5">
+</head>
+<body class="page-contact">
+<header class="bar">
+  <a class="brand" href="/" aria-label="IP Lookup 首页">
+    <span class="brand-mark"><svg width="20" height="20" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M3 12h18M12 3c2.6 2.6 2.6 15.4 0 18M12 3c-2.6 2.6-2.6 15.4 0 18" fill="none" stroke="currentColor" stroke-width="2.2"/></svg></span>
+    <span class="brand-txt">IP<em>.</em>Lookup</span>
+  </a>
+  <nav class="bar-nav" aria-label="页面导航" data-en-aria="Page">
+    <a href="/" data-en="Lookup">查询</a>
+    <a href="/fingerprint" data-en="Fingerprint">指纹</a>
+    <a href="/contact" aria-current="page" data-en="Contact">联系</a>
+  </nav>
+  <div class="bar-side">
+    <a class="back" href="/"><span data-en="Back to lookup">回到查询台</span></a>
+    <div class="theme-switch" id="themeSwitch" role="group" aria-label="主题">
+      <button type="button" data-theme-choice="auto" aria-pressed="true"><span class="theme-full">自动</span><span class="theme-short" aria-hidden="true"><svg viewBox="0 0 16 16" width="13" height="13"><circle cx="8" cy="8" r="5.25" fill="none" stroke="currentColor" stroke-width="1.6"></circle><path fill="currentColor" d="M8 2.75a5.25 5.25 0 0 0 0 10.5z"></path></svg></span></button>
+      <button type="button" data-theme-choice="light" aria-pressed="false"><span class="theme-full">浅色</span><span class="theme-short" aria-hidden="true"><svg viewBox="0 0 16 16" width="13" height="13"><circle cx="8" cy="8" r="2.3" fill="currentColor"></circle><g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.2 3.2l1.4 1.4M11.4 11.4l1.4 1.4M12.8 3.2l-1.4 1.4M4.6 11.4l-1.4 1.4"></path></g></svg></span></button>
+      <button type="button" data-theme-choice="dark" aria-pressed="false"><span class="theme-full">深色</span><span class="theme-short" aria-hidden="true"><svg viewBox="0 0 16 16" width="13" height="13"><path fill="currentColor" d="M9.4 1.7a5.5 5.5 0 1 0 4.8 8.1A4.5 4.5 0 1 1 9.4 1.7z"></path></svg></span></button>
+    </div>
+    <button type="button" class="lang" id="langToggle" aria-label="切换到英文" data-en-aria="Switch to Chinese">
+      <span class="lang-flag" aria-hidden="true">
+        <svg class="flag flag-us" viewBox="0 0 22 14" width="22" height="14"><rect width="22" height="14" fill="#fff"></rect><rect y="0" width="22" height="2" fill="#b22234"></rect><rect y="4" width="22" height="2" fill="#b22234"></rect><rect y="8" width="22" height="2" fill="#b22234"></rect><rect y="12" width="22" height="2" fill="#b22234"></rect><rect width="9" height="8" fill="#3c3b6e"></rect></svg>
+        <svg class="flag flag-cn" viewBox="0 0 30 20" width="22" height="14"><rect width="30" height="20" fill="#de2910"></rect><polygon fill="#ffde00" points="6,2.2 7.35,6.15 11.5,6.15 8.15,8.55 9.4,12.5 6,10.05 2.6,12.5 3.85,8.55 0.5,6.15 4.65,6.15"></polygon></svg>
+      </span>
+      <span class="lang-txt" data-en="中文">EN</span>
+    </button>
+  </div>
+</header>
+<main class="pg">
+  <noscript>
+    <p class="noscript">站内留言表单还没开通。请直接写信到 <a href="mailto:i@wi.fs.kg?subject=%5Bip%5D%20%E6%9D%A5%E8%87%AA%E8%81%94%E7%B3%BB%E9%A1%B5%E9%9D%A2">i@wi.fs.kg</a>。</p>
+  </noscript>
+  <section class="pg-head">
+    <p class="eyebrow"><span class="sq sq-violet"></span><span id="cEyebrow">Contact · 直接发信</span></p>
+    <h1 class="pg-title"><span id="cH1a">有话直说，</span><mark class="hl hl-lime" id="cH1b">一封邮件</mark><span id="cH1c">就到。</span></h1>
+    <p class="pg-lede" id="cLede">这个部署还没有发信接口，页面不会假装留言已经送出。IP 查错了、页面不好用，直接写到 <b>i@wi.fs.kg</b>。这是 IP Lookup 的联系页，信箱和 <b>wi.fs.kg</b> 是同一个。</p>
+  </section>
+  <div class="pg-contact">
+    <div class="contact-intro">
+      <ul class="notes contact-notes">
+        <li id="cNote1"><b>没有发信接口</b>：这个站点不代发邮件。按钮会打开你自己的邮箱。</li>
+        <li id="cNote2"><b>由你自己发出</b>：写完在邮件客户端里发送。本站不会显示「已经送到」。</li>
+        <li id="cNote3"><b>回信时间</b>：通常是看到就回，忙起来可能要一两天。技术问题请把地址和复现步骤写在邮件里。</li>
+      </ul>
+      <div class="contact-tags" id="contactTags" hidden>
+        <span class="contact-tags-k" id="cTagsK">快速起头</span>
+        <div class="contact-tags-row">
+          <button type="button" class="ctag" data-k="wrong" id="cTagWrong">数据不准</button>
+          <button type="button" class="ctag" data-k="api" id="cTagApi">接口建议</button>
+          <button type="button" class="ctag" data-k="bug" id="cTagBug">Bug 反馈</button>
+          <button type="button" class="ctag" data-k="other" id="cTagOther">随便聊聊</button>
+        </div>
+        <p class="fine" id="cTagsFine">点一下会在留言框里带出提纲，按着填完直接发。</p>
+      </div>
+    </div>
+    <div class="pg-form-col">
+      <div class="mailto-card" id="mailtoCard">
+        <span class="mailto-k" id="cMailK">发到这个地址</span>
+        <a class="btn btn-primary mailto-cta" id="mailtoLink" href="mailto:i@wi.fs.kg?subject=%5Bip%5D%20%E6%9D%A5%E8%87%AA%E8%81%94%E7%B3%BB%E9%A1%B5%E9%9D%A2">i@wi.fs.kg</a>
+        <p class="fine" id="cMailFine">打开你的邮件应用，主题已写上 [ip]。正文请自己写，然后发送。</p>
+      </div>
+      <form class="cform" id="cform" hidden novalidate>
+        <div class="cform-row">
+          <label class="field"><span class="field-k"><span id="cNameK">称呼</span> <em id="cNameOpt">选填</em></span><input id="cName" name="name" type="text" maxlength="80" autocomplete="name"></label>
+          <label class="field"><span class="field-k"><span id="cEmailK">邮箱</span> <em id="cEmailReq">必填</em></span><input id="cEmail" name="email" type="email" maxlength="200" autocomplete="email" required></label>
+        </div>
+        <label class="field"><span class="field-k"><span id="cMsgK">留言</span> <em id="cMsgReq">必填</em></span><textarea id="cMsg" name="message" rows="6" maxlength="5000" required></textarea><span class="field-count mono" id="cCount">0 / 5000</span></label>
+        <div class="hp" aria-hidden="true"><label>网站地址<input id="cSite" name="website" type="text" tabindex="-1" autocomplete="off"></label></div>
+        <div class="cform-human">
+          <span class="field-k"><span id="cHumanK">安全校验</span> <em id="cHumanOpt">自动完成</em></span>
+          <div class="ts-slot is-off" id="tsSlot"><div id="tsWidget"></div><p class="ts-fallback" id="tsFallback"><span id="cTsOff">这个部署还没打开自动校验</span></p></div>
+          <p class="fine" id="cHumanHint"></p>
+        </div>
+        <div class="cform-foot">
+          <button class="btn btn-primary" id="cSend" type="submit"><span id="cSendTxt">发送留言</span></button>
+          <span class="cform-state" id="cState" role="status" aria-live="polite"></span>
+        </div>
+        <p class="fine" id="cConsent">提交即表示同意我们仅为回复此留言而使用你填写的邮箱。内容不会公开展示。</p>
+        <div class="cform-done" id="cDone" hidden>
+          <h2 class="cdone-t" id="cDoneT">已经送到了</h2>
+          <p class="cdone-p"><span id="cDoneP1">谢谢你的留言。回信会发到</span> <b id="cDoneTo"></b></p>
+          <button class="btn btn-ghost btn-sm" type="button" id="cAgain">再写一封</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  <nav class="pg-next" aria-label="其它入口">
+    <a class="pn" href="/"><span class="pn-k">Lookup</span><span class="pn-t" id="cPnHome">回查询台</span><span class="pn-d" id="cPnHomeD">位置、线路、风险，还在原来那一页。</span></a>
+    <a class="pn" href="/fingerprint"><span class="pn-k">Fingerprint</span><span class="pn-t" id="cPnFp">浏览器指纹</span><span class="pn-d" id="cPnFpD">本地采样，不上传，刷新即清。</span></a>
+    <a class="pn" href="/#dev"><span class="pn-k">CLI</span><span class="pn-t" id="cPnCli">终端接口</span><span class="pn-d" id="cPnCliD">curl 一行取 IP，/json 取整份情报。</span></a>
+  </nav>
+</main>
+<footer class="foot">
+  <div class="foot-l"><span class="mono">IP Lookup</span><span class="foot-sep">/</span><span data-en="Same inbox as wi.fs.kg">信箱与 wi.fs.kg 相同</span></div>
+  <div class="foot-r"><a class="foot-link" href="/" data-en="Lookup">查询</a><span class="foot-sep">/</span><a class="foot-link" href="/fingerprint" data-en="Fingerprint">指纹</a><span class="foot-sep">/</span><a class="foot-link" href="/contact" data-en="Contact">联系</a></div>
+</footer>
+<script src="/assets/theme.js?v=1"></script>
+<script type="module" src="/assets/contact.js?v=1"></script>
+</body>
+</html>

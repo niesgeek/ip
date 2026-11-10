@@ -21,6 +21,25 @@ import {
   summarizeReach,
   validateTarget,
 } from "./logic/reach.js";
+import { compareResolvers, EDNS_URL, EDNS_VENDOR, parseEdns } from "./logic/dnsleak.js";
+import { applyDom, bindLangToggle, getLang, L, onLang } from "./logic/i18n.js";
+import { CUSTOM_SITE_LIMIT, SITE_PROBES, classifyProbe, normalizeHost, probeUrl } from "./logic/sites.js";
+import { STACK_PROBES, familyOf, parsePlainIp, sameIp } from "./logic/stack.js";
+
+const SOURCE_EN = {
+  edge: "edge",
+  "ipwho.is": "ipwho.is",
+  "ip.sb": "ip.sb",
+  geojs: "geojs.io",
+  "ipapi.co": "ipapi.co",
+  local: "local",
+};
+const TIER_EN = {
+  home: "Home / business broadband",
+  transit: "Transit or backbone",
+  cloud: "Cloud host",
+  proxy: "Likely proxy / VPN",
+};
 
 document.documentElement.classList.add("js");
 
@@ -37,6 +56,11 @@ const state = {
   stats: { q: 0, ips: 0, v6: 0, ms: [] },
   sources: {},
   batch: [],
+  customSites: [],
+  siteResults: [],
+  siteRunning: false,
+  reachModel: null,
+  reachCached: false,
 };
 
 function esc(value) {
@@ -88,18 +112,39 @@ function orgText(record) {
 }
 
 function viewOf(record, source, skipped = []) {
-  const skip = skipped.length ? `（已跳过 ${skipped.map((item) => sourceLabel(item.id)).join("、")}）` : "";
-  return {
+  return localize({
     ...record,
     lat: record.latitude,
     lon: record.longitude,
     cc: record.country_code,
-    countryName: record.local ? "私网或本机地址" : countryLabel(record.country_code, record.country),
-    continentName: continentLabel(record.continent),
     sourceId: source,
-    sourceText: `${sourceLabel(source)}${skip}`,
+    skipped,
     edge: source === "edge",
+  });
+}
+
+function localize(view) {
+  if (!view) return view;
+  const lang = getLang();
+  const skipped = view.skipped || [];
+  const skip = skipped.length
+    ? L(
+      `（已跳过 ${skipped.map((item) => sourceLabel(item.id)).join("、")}）`,
+      ` (skipped ${skipped.map((item) => SOURCE_EN[item.id] || sourceLabel(item.id)).join(", ")})`,
+    )
+    : "";
+  const sourceName = lang === "en" ? (SOURCE_EN[view.sourceId] || sourceLabel(view.sourceId)) : sourceLabel(view.sourceId);
+  return {
+    ...view,
+    countryName: view.local ? L("私网或本机地址", "Private or local address") : countryLabel(view.cc || view.country_code, view.country, lang),
+    continentName: continentLabel(view.continent, lang),
+    sourceText: `${sourceName}${skip}`,
   };
+}
+
+function tierText(risk) {
+  if (!risk) return "";
+  return getLang() === "en" ? (TIER_EN[risk.tier] || risk.label) : risk.label;
 }
 
 function bandIndex(tier) {
@@ -187,9 +232,10 @@ const MapView = (() => {
     base.height = cv.height;
     const g = base.getContext("2d");
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
-    g.fillStyle = "#FFFDF6";
+    const dark = document.documentElement.getAttribute("data-theme") === "dark";
+    g.fillStyle = dark ? "#1a1815" : "#FFFDF6";
     g.fillRect(0, 0, cssW, cssH);
-    g.strokeStyle = "rgba(20,18,16,.10)";
+    g.strokeStyle = dark ? "rgba(244,239,230,.16)" : "rgba(20,18,16,.10)";
     g.lineWidth = 1;
     g.setLineDash([3, 5]);
     for (let lon = -150; lon <= 150; lon += 30) {
@@ -216,12 +262,12 @@ const MapView = (() => {
       for (let c = 0; c < GEO.cols; c += 1) {
         const x = box.x + (c + 0.5) * cw;
         if (row.charCodeAt(c) === 49) {
-          g.fillStyle = "rgba(20,18,16,.86)";
+          g.fillStyle = dark ? "rgba(244,239,230,.88)" : "rgba(20,18,16,.86)";
           g.beginPath();
           g.arc(x, y, rad, 0, Math.PI * 2);
           g.fill();
         } else {
-          g.fillStyle = "rgba(20,18,16,.075)";
+          g.fillStyle = dark ? "rgba(244,239,230,.08)" : "rgba(20,18,16,.075)";
           g.fillRect(x - 0.6, y - 0.6, 1.2, 1.2);
         }
       }
@@ -229,7 +275,8 @@ const MapView = (() => {
   }
   function marker(loc, color, rad, ring) {
     const p = project(loc.lon, loc.lat);
-    ctx.strokeStyle = "rgba(20,18,16,.55)";
+    const dark = document.documentElement.getAttribute("data-theme") === "dark";
+    ctx.strokeStyle = dark ? "rgba(244,239,230,.45)" : "rgba(20,18,16,.55)";
     ctx.lineWidth = 1.2;
     ctx.setLineDash([3, 4]);
     ctx.beginPath();
@@ -246,7 +293,7 @@ const MapView = (() => {
       ctx.stroke();
     }
     ctx.fillStyle = color;
-    ctx.strokeStyle = "#141210";
+    ctx.strokeStyle = dark ? "#f4efe6" : "#141210";
     ctx.lineWidth = 2.4;
     ctx.beginPath();
     ctx.arc(p.x, p.y, rad, 0, Math.PI * 2);
@@ -334,6 +381,7 @@ const MapView = (() => {
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(() => { buildBase(); draw(); }, 180);
   });
+  document.addEventListener("ip-theme", () => { buildBase(); draw(); });
   buildBase();
   draw();
   return {
@@ -424,35 +472,315 @@ function applyClock(record, prefix) {
   tickClocks();
 }
 
+const stacks = {
+  probed: false,
+  probing: false,
+  diverged: "",
+  v4: { phase: "idle", view: null, via: "" },
+  v6: { phase: "idle", view: null, via: "" },
+};
+
+function stackSlot(family) {
+  return family === "6" ? stacks.v6 : stacks.v4;
+}
+
 function renderMe(view, diverged) {
   state.me = view;
-  $("#myIpTxt").textContent = view.ip || "— — —";
-  $("#myIpFlag").innerHTML = flagHtml(view.cc, 34, 24);
-  $("#myIpSub").textContent = placeName(view) || "地理层级由兜底接口提供";
-  $("#barMeIp").textContent = view.ip || "读取失败";
+  if (diverged) stacks.diverged = diverged;
+  const family = familyOf(view?.ip);
+  if (family) {
+    const slot = stackSlot(family);
+    slot.phase = "known";
+    slot.view = view;
+    slot.via = view.edge ? "edge" : "fallback";
+  }
+  $("#barMeIp").textContent = view?.ip || L("读取失败", "unreadable");
   const badge = $("#myipSrc");
-  badge.textContent = view.edge ? "边缘直读" : "接口兜底";
-  badge.className = `badge${view.edge ? "" : " badge-grey"}`;
-  const rows = [
-    ["国家 / 城市", [view.countryName, view.city].filter(Boolean).join(" ")],
-    ["运营商", orgText(view)],
-    ["ASN", view.asn ? `AS${view.asn}` : ""],
-    ["协议版本", view.type || ""],
-    ["连接 / TLS", view.edge ? [view.httpProtocol, view.tlsVersion].filter(Boolean).join(" / ") || "—" : "需边缘节点"],
-    ["接入节点", view.colo || (view.edge ? "—" : "需边缘节点")],
-  ];
-  $("#myKv").innerHTML = rows.map(([k, v]) => `<div class="kv-row"><dt>${esc(k)}</dt><dd>${esc(v || "—")}</dd></div>`).join("");
+  badge.textContent = view?.edge ? L("边缘直读", "From the edge") : L("接口兜底", "Public fallback");
+  badge.className = `badge${view?.edge ? "" : " badge-grey"}`;
+  const conn = [];
+  if (view?.edge) {
+    conn.push([L("这次连接", "This request"), view.type || "—"]);
+    conn.push([L("连接 / TLS", "Connection / TLS"), [view.httpProtocol, view.tlsVersion].filter(Boolean).join(" / ") || "—"]);
+    conn.push([L("接入节点", "Edge site"), view.colo || "—"]);
+  }
+  $("#myKv").innerHTML = conn.map(([k, v]) => `<div class="kv-row"><dt>${esc(k)}</dt><dd>${esc(v || "—")}</dd></div>`).join("");
   const warn = $("#myGeoWarn");
-  if (diverged && view.edge) {
-    warn.innerHTML = `<svg width="13" height="13" aria-hidden="true"><use href="#i-info"/></svg><span>边缘判定 ${esc(view.countryName || view.cc || "—")}，公开接口判定 ${esc(diverged)}。该地址段在不同归属地库里的判定本来就不一致，上方字段一律取自边缘。</span>`;
+  if (stacks.diverged && view?.edge) {
+    warn.innerHTML = `<svg width="13" height="13" aria-hidden="true"><use href="#i-info"/></svg><span>${esc(L(
+      `边缘判定 ${view.countryName || view.cc || "—"}，公开接口判定 ${stacks.diverged}。该地址段在不同归属地库里的判定本来就不一致，上方字段一律取自边缘。`,
+      `The edge says ${view.countryName || view.cc || "—"}, a public database says ${stacks.diverged}. Those libraries disagree on this range. The fields above stay with the edge.`,
+    ))}</span>`;
     warn.hidden = false;
   } else warn.hidden = true;
   $("#mySum").hidden = false;
+  renderStacks();
   MapView.setMe(view);
-  const off = zoneOffsetSeconds(view.timezone) ?? zoneOffsetSeconds(Intl.DateTimeFormat().resolvedOptions().timeZone);
+  const off = zoneOffsetSeconds(view?.timezone) ?? zoneOffsetSeconds(Intl.DateTimeFormat().resolvedOptions().timeZone);
   $("#ckMe").dataset.off = off == null ? "" : String(off);
-  $("#ckMeZone").textContent = view.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || "—";
+  $("#ckMeZone").textContent = view?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || "—";
   tickClocks();
+}
+
+function stackCopy(slot) {
+  if (slot.phase === "known" && slot.view?.ip) return slot.view.ip;
+  if (slot.phase === "loading") return L("正在问…", "Asking…");
+  if (slot.phase === "missing") return L("没有这条出口", "No exit on this stack");
+  if (slot.phase === "error") return L("这次没问到", "This check failed");
+  return L("尚未探测", "Not checked yet");
+}
+
+function renderStacks() {
+  for (const family of ["4", "6"]) {
+    const slot = stackSlot(family);
+    const card = $(`#stack${family}`);
+    const view = slot.view;
+    card.classList.toggle("is-miss", slot.phase === "missing" || slot.phase === "error");
+    card.classList.toggle("is-idle", slot.phase === "idle" || slot.phase === "loading");
+    $(`#stack${family}State`).textContent = slot.phase === "known"
+      ? (slot.via === "edge" ? L("本次连接", "This request") : slot.via === "probe" ? L("探测到", "Probed") : L("已读到", "Read"))
+      : slot.phase === "missing" ? L("缺失", "Missing")
+        : slot.phase === "error" ? L("失败", "Failed")
+          : slot.phase === "loading" ? L("探测中", "Checking")
+            : L("未测", "Not run");
+    const button = $(`#stack${family}Ip`);
+    button.textContent = stackCopy(slot);
+    button.disabled = !(slot.phase === "known" && view?.ip);
+    const risk = view ? assessRisk({ org: view.org, isp: view.isp, asn: view.asn, local: view.local }) : null;
+    $(`#stack${family}Place`).textContent = view
+      ? (placeName(view) || L("没有地理字段", "No geography"))
+      : (slot.phase === "missing"
+        ? L("这台设备现在没有这一侧的公网出口，或专用地址没连上。", "This device has no public exit on this stack, or the family-specific address did not connect.")
+        : slot.phase === "error"
+          ? L("icanhazip 和 ip.sb 都没有返回这一侧的地址。", "Neither icanhazip nor ip.sb returned an address for this stack.")
+          : "");
+    $(`#stack${family}Meta`).textContent = view
+      ? [view.asn ? `AS${view.asn}` : "", orgText(view), risk ? `${tierText(risk)} ${risk.score}` : ""].filter(Boolean).join(" · ")
+      : "";
+  }
+  const known = [stacks.v4, stacks.v6].filter((slot) => slot.phase === "known").length;
+  $("#myIpSub").textContent = known === 2
+    ? L("IPv4 和 IPv6 出口都读到了。", "Both IPv4 and IPv6 exits were read.")
+    : known === 1
+      ? L("目前只看到一侧。另一侧要点下面才会去问。", "Only one stack is visible. The other is asked only after the button below.")
+      : L("还没有读到公网出口。", "No public exit yet.");
+  const go = $("#stackGo");
+  go.disabled = stacks.probing;
+  go.textContent = stacks.probing
+    ? L("探测中…", "Checking…")
+    : stacks.probed ? L("再测一次", "Run again") : L("探测另一侧出口", "Check the other exit");
+  const summary = $("#mySum");
+  if (summary) summary.textContent = L("复制体检摘要", "Copy summary");
+  const note = $("#stackNote");
+  if (note) {
+    note.textContent = L(
+      "打开页面时只读这一次连接用的那一侧，不额外打第三方。点下面才会向 icanhazip.com 的 IPv4 / IPv6 专用地址各问一行 IP，失败再问 ip.sb。没有自定义域名，所以还不能用 4. / 6. 主机名。",
+      "Opening the page only reads the stack this request used. The button below asks icanhazip.com’s IPv4-only and IPv6-only addresses for a single IP line, then ip.sb if that fails. Without a custom domain there is no 4. / 6. hostname yet.",
+    );
+  }
+}
+
+async function probeFamily(family) {
+  const slot = stackSlot(family);
+  if (slot.phase === "known" && slot.via === "edge" && !stacks.probed) return;
+  slot.phase = "loading";
+  slot.error = "";
+  renderStacks();
+  let found = null;
+  let asked = false;
+  for (const probe of STACK_PROBES[family]) {
+    asked = true;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 6000);
+    try {
+      const response = await fetch(probe.url, { cache: "no-store", signal: controller.signal, referrerPolicy: "no-referrer" });
+      const text = await response.text();
+      found = parsePlainIp(text, family);
+      if (found) break;
+    } catch { /* try the next endpoint */ }
+    finally { clearTimeout(timer); }
+  }
+  if (!found) {
+    slot.phase = asked ? "missing" : "error";
+    slot.view = null;
+    renderStacks();
+    return;
+  }
+  const existing = state.me && sameIp(state.me.ip, found.ip) ? state.me : null;
+  if (existing) {
+    slot.phase = "known";
+    slot.view = existing;
+    slot.via = existing.edge ? "edge" : "fallback";
+    renderStacks();
+    return;
+  }
+  const geo = await lookupGeo(found.ip).catch(() => null);
+  slot.phase = "known";
+  slot.via = "probe";
+  slot.view = geo?.record ? viewOf(geo.record, geo.source, geo.skipped) : { ip: found.ip, type: found.type, cc: null };
+  renderStacks();
+}
+
+async function runStacks() {
+  if (stacks.probing) return;
+  stacks.probing = true;
+  renderStacks();
+  try {
+    await Promise.all(["4", "6"].map(async (family) => {
+      const slot = stackSlot(family);
+      if (slot.phase === "known" && slot.via === "edge") return;
+      await probeFamily(family);
+    }));
+    stacks.probed = true;
+  } finally {
+    stacks.probing = false;
+    renderStacks();
+  }
+}
+
+async function runLeak() {
+  const button = $("#leakGo");
+  const verdict = $("#leakVerdict");
+  const list = $("#leakList");
+  button.disabled = true;
+  verdict.hidden = false;
+  verdict.textContent = L(`正在问 ${EDNS_VENDOR} …`, `Asking ${EDNS_VENDOR}…`);
+  list.innerHTML = "";
+  const rows = [];
+  await Promise.all([0, 1, 2].map(async () => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
+    try {
+      const response = await fetch(EDNS_URL, { cache: "no-store", redirect: "follow", signal: controller.signal, referrerPolicy: "no-referrer" });
+      if (!response.ok) return;
+      const parsed = parseEdns(await response.json());
+      if (parsed) rows.push(parsed);
+    } catch { /* one sample can fail */ }
+    finally { clearTimeout(timer); }
+  }));
+  button.disabled = false;
+  button.textContent = L("再测一次", "Run again");
+  if (!rows.length) {
+    verdict.textContent = L(
+      `没问到。${EDNS_VENDOR} 可能被拦住、限流，或这会儿连不上。这一页没有结果可上传。`,
+      `Nothing came back. ${EDNS_VENDOR} may be blocked, rate-limited, or down. This page has nothing to upload.`,
+    );
+    return;
+  }
+  const enriched = [];
+  for (const row of rows) {
+    const geo = await lookupGeo(row.ip).catch(() => null);
+    const view = geo?.record ? viewOf(geo.record, geo.source, geo.skipped) : null;
+    enriched.push({ ...row, asn: view?.asn ?? null, cc: view?.cc || null, place: view ? placeName(view) : row.geo });
+  }
+  const exits = [stacks.v4.view, stacks.v6.view, state.me].filter(Boolean);
+  const compared = compareResolvers(enriched, exits);
+  const names = compared.resolvers.map((row) => row.ip).join(", ");
+  if (compared.id === "same-ip") {
+    verdict.textContent = L(
+      `解析器出口和当前网页出口是同一个地址（${names}）。`,
+      `The resolver egress is the same address as this page’s exit (${names}).`,
+    );
+  } else if (compared.id === "same-asn") {
+    verdict.textContent = L(
+      `地址不同，但 ASN 和当前出口一致。更像同一家运营商的解析，还不能据此说泄漏。`,
+      `The address differs, but the ASN matches the current exit. That looks like the same operator’s resolver, not by itself a leak.`,
+    );
+  } else {
+    verdict.textContent = L(
+      `解析器出口（${names}）和当前网页出口不是同一个地址。若你开着 VPN，而解析器仍像家里的运营商，才更像 DNS 泄漏。`,
+      `The resolver egress (${names}) is not this page’s exit. If a VPN is on and the resolver still looks like the home ISP, that is the leak-shaped case.`,
+    );
+  }
+  list.innerHTML = compared.resolvers.map((row) => `<div class="leak-row"><span class="leak-ip">${esc(row.ip)}</span><span>${esc(row.place || row.geo || row.org || "—")}</span><span>${esc(row.asn ? `AS${row.asn}` : EDNS_VENDOR)}</span></div>`).join("");
+}
+
+function siteRows() {
+  return [
+    ...SITE_PROBES.map((row) => ({ ...row, custom: false })),
+    ...(state.customSites || []),
+  ];
+}
+
+function renderSites() {
+  const host = $("#siteList");
+  if (!host) return;
+  const rows = state.siteResults || [];
+  if (!rows.length) {
+    host.innerHTML = `<p class="fine">${esc(L("还没开始。点「开始」后才会从这台浏览器去碰下面这些网站。", "Not started. Nothing is contacted until you press Start."))}</p>`;
+    return;
+  }
+  host.innerHTML = rows.map((row) => {
+    const label = getLang() === "en" ? (row.en || row.zh || row.host) : (row.zh || row.host);
+    let mark = L("等待", "waiting");
+    let tone = "";
+    if (row.state === "open") { mark = L("打开了", "opened"); tone = "tone-open"; }
+    else if (row.state === "timeout") { mark = L("超时", "timed out"); tone = "tone-fail"; }
+    else if (row.state === "fail") { mark = L("没连上", "did not connect"); tone = "tone-fail"; }
+    else if (row.state === "run") { mark = L("探测中", "checking"); }
+    const ms = row.ms == null ? "" : `${row.ms} ms`;
+    return `<div class="site-row"><span>${esc(label)} <span class="mono">${esc(row.host)}</span></span><span class="${tone}">${esc(mark)}</span><span class="site-ms">${esc(ms)}</span></div>`;
+  }).join("");
+}
+
+async function probeSite(row) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
+  const started = performance.now();
+  try {
+    await fetch(probeUrl(row.host), { mode: "no-cors", cache: "no-store", referrerPolicy: "no-referrer", signal: controller.signal });
+    return { state: classifyProbe({ ok: true }), ms: Math.round(performance.now() - started) };
+  } catch (error) {
+    const reason = error?.name === "AbortError" ? "timeout" : "fail";
+    return { state: classifyProbe({ ok: false, reason }), ms: Math.round(performance.now() - started) };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function runSites() {
+  if (state.siteRunning) return;
+  state.siteRunning = true;
+  const button = $("#siteGo");
+  button.disabled = true;
+  state.siteResults = siteRows().map((row) => ({ ...row, state: "run", ms: null }));
+  renderSites();
+  const queue = state.siteResults;
+  let cursor = 0;
+  async function worker() {
+    while (cursor < queue.length) {
+      const index = cursor;
+      cursor += 1;
+      const result = await probeSite(queue[index]);
+      queue[index] = { ...queue[index], ...result };
+      renderSites();
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(4, queue.length) }, () => worker()));
+  state.siteRunning = false;
+  button.disabled = false;
+  button.textContent = L("再测一次", "Run again");
+}
+
+function addCustomSite() {
+  const host = normalizeHost($("#siteInput").value);
+  if (!host) {
+    toast(L("请输入像 example.com 这样的域名", "Enter a hostname such as example.com"));
+    return;
+  }
+  state.customSites = state.customSites || [];
+  if (siteRows().some((row) => row.host === host)) {
+    toast(L("这个域名已经在列表里", "That host is already listed"));
+    return;
+  }
+  if (state.customSites.length >= CUSTOM_SITE_LIMIT) {
+    toast(L(`自定义最多 ${CUSTOM_SITE_LIMIT} 个`, `Up to ${CUSTOM_SITE_LIMIT} custom hosts`));
+    return;
+  }
+  state.customSites.push({ id: host, host, zh: host, en: host, custom: true });
+  $("#siteInput").value = "";
+  if (state.siteResults?.length) state.siteResults.push({ ...state.customSites.at(-1), state: "wait", ms: null });
+  renderSites();
 }
 
 function renderRisk(record) {
@@ -517,7 +845,7 @@ function renderDnsRecords(dns, domain) {
 
 function renderDetail(view) {
   const self = state.me && view.ip && view.ip === state.me.ip && !view.domain;
-  $("#dTitle").textContent = self ? "我的定位" : (view.domain && !view.ip ? "域名记录" : "查询结果");
+  $("#dTitle").textContent = self ? L("我的定位", "Where I am") : (view.domain && !view.ip ? L("域名记录", "Domain records") : L("查询结果", "Result"));
   $("#dIcon").setAttribute("href", self ? "#i-target" : "#i-info");
   show($("#detailEmpty"), false);
   show($("#detailBody"), true);
@@ -543,18 +871,18 @@ function renderDetail(view) {
   $("#rPath").textContent = [view.continentName, view.region, view.city].filter(Boolean).join(" › ") || "省州与城市未提供";
   $("#rType").textContent = view.type || "未知类型";
   const rows = [];
-  if (view.continentName) rows.push(["大洲", view.continentName]);
-  rows.push(["国家 / 地区", null, flagHtml(view.cc, 22, 15, true) + esc(view.countryName || view.cc || "—")]);
-  if (view.region) rows.push(["省 / 州", view.region]);
-  if (view.city) rows.push(["城市", view.city]);
-  if (view.lat != null && view.lon != null) rows.push(["经纬度", `${view.lat.toFixed(5)}, ${view.lon.toFixed(5)}`, null, true]);
-  if (view.timezone) rows.push(["时区", view.timezone, null, true]);
+  if (view.continentName) rows.push([L("大洲", "Continent"), view.continentName]);
+  rows.push([L("国家 / 地区", "Country"), null, flagHtml(view.cc, 22, 15, true) + esc(view.countryName || view.cc || "—")]);
+  if (view.region) rows.push([L("省 / 州", "Region"), view.region]);
+  if (view.city) rows.push([L("城市", "City"), view.city]);
+  if (view.lat != null && view.lon != null) rows.push([L("经纬度", "Coordinates"), `${view.lat.toFixed(5)}, ${view.lon.toFixed(5)}`, null, true]);
+  if (view.timezone) rows.push([L("时区", "Time zone"), view.timezone, null, true]);
   if (view.asn) rows.push(["ASN", `AS${view.asn}`, null, true]);
-  if (view.isp) rows.push(["运营商 ISP", view.isp, null, true]);
-  if (view.org) rows.push(["网络组织", view.org, null, true]);
-  if (view.postal) rows.push(["邮政编码", view.postal, null, true]);
-  rows.push(["数据来源", view.sourceText, null, true]);
-  if (view.colo) rows.push(["接入节点", view.colo]);
+  if (view.isp) rows.push([L("运营商 ISP", "ISP"), view.isp, null, true]);
+  if (view.org) rows.push([L("网络组织", "Network"), view.org, null, true]);
+  if (view.postal) rows.push([L("邮政编码", "Postal code"), view.postal, null, true]);
+  rows.push([L("数据来源", "Source"), view.sourceText, null, true]);
+  if (view.colo) rows.push([L("接入节点", "Edge site"), view.colo]);
   $("#rKv").innerHTML = rows.map(([label, value, html]) => `<div class="kv-row"><dt>${esc(label)}</dt><dd${value ? ` class="clickable" data-copy="${esc(value)}"` : ""}>${html || esc(value || "—")}</dd></div>`).join("");
   $("#rKv").querySelectorAll("dd[data-copy]").forEach((dd) => dd.addEventListener("click", () => copyText(dd.dataset.copy)));
   const km = state.me && !self ? haversine(state.me, view) : null;
@@ -736,8 +1064,11 @@ async function runQuery(raw, options = {}) {
       renderDetail(found.view);
       noteQuery(found.view, found.elapsed);
       setStatus(options.silent
-        ? `已默认定位你自己（${found.view.city || found.view.countryName || "未知"}）。输入别的 IP，标题会切回「查询结果」。`
-        : `${found.view.countryName || found.view.ip} · 来源 ${found.view.sourceText}`);
+        ? L(
+          `已默认定位你自己（${found.view.city || found.view.countryName || "未知"}）。输入别的 IP，标题会切回「查询结果」。`,
+          `Showing you (${found.view.city || found.view.countryName || "unknown"}). Type another IP and the heading switches back to Result.`,
+        )
+        : `${found.view.countryName || found.view.ip} · ${L("来源", "source")} ${found.view.sourceText}`);
       return;
     }
     setStatus(`正在解析域名 ${parsed.domain} …`, "busy");
@@ -796,11 +1127,11 @@ async function loadMe() {
   } else {
     const geo = await lookupGeo(null).catch(() => null);
     if (!geo?.record) {
-      $("#myIpTxt").textContent = "读取失败";
-      $("#myIpSub").textContent = "可能是网络受限或接口被限流，稍后刷新重试。";
-      $("#barMeIp").textContent = "读取失败";
-      $("#myipSrc").textContent = "未读到";
-      setStatus("没能读出你的网络信息，直接输入 IP 查询仍然可用。", "err");
+      $("#myIpSub").textContent = L("可能是网络受限或接口被限流，稍后刷新重试。", "The network may be restricted or a provider is rate-limiting. Refresh and try again.");
+      $("#barMeIp").textContent = L("读取失败", "unreadable");
+      $("#myipSrc").textContent = L("未读到", "unread");
+      renderStacks();
+      setStatus(L("没能读出你的网络信息，直接输入 IP 查询仍然可用。", "Your network could not be read. Looking up an IP you type still works."), "err");
       return;
     }
     renderMe(viewOf(geo.record, geo.source, geo.skipped));
@@ -1106,19 +1437,19 @@ function toneOf(id) {
 function nodeLine(node) {
   const where = [node.location, node.provider].filter(Boolean).join(" · ") || node.id;
   const mark = node.status === "ok"
-    ? `<b class="reach-ok">${node.ms == null ? "通" : `${esc(node.ms)} ms`}</b>`
-    : `<b class="reach-bad">不通</b>`;
+    ? `<b class="reach-ok">${node.ms == null ? esc(L("通", "up")) : `${esc(node.ms)} ms`}</b>`
+    : `<b class="reach-bad">${esc(L("不通", "down"))}</b>`;
   return `<div class="reach-node"><span>${esc(where)}</span>${mark}</div>`;
 }
 
 function protoBlock(label, side, nodes) {
   if (!side) {
-    return `<div class="reach-proto"><div class="reach-proto-h"><span>${esc(label)}</span><span class="pill pill-wait">还在测</span></div></div>`;
+    return `<div class="reach-proto"><div class="reach-proto-h"><span>${esc(label)}</span><span class="pill pill-wait">${esc(L("还在测", "checking"))}</span></div></div>`;
   }
   const pill = side.state === "fail" ? "pill-bad" : side.state === "mixed" ? "pill-dc" : side.state === "ok" ? "pill-home" : "pill-wait";
-  const text = side.total < 2 ? "样本不够" : `通 ${side.ok} · 不通 ${side.fail}`;
+  const text = side.total < 2 ? L("样本不够", "too few") : L(`通 ${side.ok} · 不通 ${side.fail}`, `up ${side.ok} · down ${side.fail}`);
   const list = (nodes || []).map(nodeLine).join("");
-  const offline = side.offline ? `<p class="fine">${side.offline} 个节点离线，已忽略</p>` : "";
+  const offline = side.offline ? `<p class="fine">${esc(L(`${side.offline} 个节点离线，已忽略`, `${side.offline} offline nodes ignored`))}</p>` : "";
   return `<div class="reach-proto"><div class="reach-proto-h"><span>${esc(label)}</span><span class="pill ${pill}">${text}</span></div>${list}${offline}</div>`;
 }
 
@@ -1131,21 +1462,26 @@ function columnHtml(heading, icmp, tcp, port, overseas) {
 }
 
 function paintReach(model, options = {}) {
+  state.reachModel = model || null;
+  state.reachCached = Boolean(options.cached);
   const banner = $("#reachBanner");
   const grid = $("#reachGrid");
   if (!model) {
     banner.className = "reach-banner tone-muted";
-    $("#reachTitle").textContent = "还没探测";
-    $("#reachDetail").textContent = "在上面查一个公网 IP，这里会自动对照国内和国外。也可以自己填地址和端口。";
-    $("#reachSrc").textContent = "查询后自动测";
+    $("#reachTitle").textContent = L("还没探测", "Not checked");
+    $("#reachDetail").textContent = L(
+      "在上面查一个公网 IP，这里会自动对照国内和国外。也可以自己填地址和端口。",
+      "Look up a public IP above and this compares mainland China with abroad. You can also type an address and port.",
+    );
+    $("#reachSrc").textContent = L("查询后自动测", "Runs after a lookup");
     show(grid, false);
     $("#reachGo").disabled = false;
-    $("#reachGo").textContent = "开始检测";
+    $("#reachGo").textContent = L("开始检测", "Start");
     return;
   }
   const verdict = model.tcp || model.tcpError
-    ? summarizeReach({ icmp: model.icmp, tcp: model.tcp, port: model.port, icmpError: model.icmpError || "" })
-    : { id: "pending", tone: "muted", title: "正在探测", detail: "归属地已经出来了。国内外节点还在测这个端口，通常要几秒到十几秒。" };
+    ? summarizeReach({ icmp: model.icmp, tcp: model.tcp, port: model.port, icmpError: model.icmpError || "", lang: getLang() })
+    : summarizeReach({ icmp: null, tcp: null, port: model.port, lang: getLang() });
   if (model.tcpError && !model.tcp) {
     verdict.id = "error";
     verdict.tone = "bad";
@@ -1155,7 +1491,7 @@ function paintReach(model, options = {}) {
   const tone = toneOf(verdict.id);
   banner.className = `reach-banner tone-${tone}`;
   $("#reachTitle").textContent = verdict.title;
-  const cached = options.cached ? " 这是刚才存在这台浏览器里的结果。" : "";
+  const cached = options.cached ? L(" 这是刚才存在这台浏览器里的结果。", " This is the result kept in this browser a moment ago.") : "";
   $("#reachDetail").textContent = `${verdict.detail}${cached}`;
   const tcpName = model.tcp?.source === "globalping" ? "TCP Globalping" : model.tcp ? "TCP ping.pe" : "TCP …";
   const icmpName = model.icmp ? "ICMP Globalping" : model.icmpError ? "ICMP 失败" : "ICMP …";
@@ -1163,12 +1499,12 @@ function paintReach(model, options = {}) {
   const hasNodes = Boolean(model.tcp || model.icmp);
   show(grid, hasNodes);
   if (hasNodes) {
-    $("#reachDomestic").innerHTML = columnHtml("国内", model.icmp, model.tcp, model.port, false);
-    $("#reachOverseas").innerHTML = columnHtml("国外", model.icmp, model.tcp, model.port, true);
+    $("#reachDomestic").innerHTML = columnHtml(L("国内", "Mainland China"), model.icmp, model.tcp, model.port, false);
+    $("#reachOverseas").innerHTML = columnHtml(L("国外", "Abroad"), model.icmp, model.tcp, model.port, true);
   }
   const waiting = Boolean(model.pending && !model.tcp && !model.tcpError);
   $("#reachGo").disabled = waiting;
-  $("#reachGo").textContent = waiting ? "探测中…" : "重新检测";
+  $("#reachGo").textContent = waiting ? L("探测中…", "Checking…") : L("重新检测", "Run again");
 }
 
 function showReachError(message) {
@@ -1304,6 +1640,31 @@ fillHosts();
 renderHistory();
 renderCidr();
 paintPriv();
+applyDom(document);
+bindLangToggle();
+state.siteResults = siteRows().map((row) => ({ ...row, state: "wait", ms: null }));
+renderSites();
+renderStacks();
+onLang(() => {
+  if (state.me) renderMe(localize(state.me), stacks.diverged);
+  if (stacks.v4.view) stacks.v4.view = localize(stacks.v4.view);
+  if (stacks.v6.view) stacks.v6.view = localize(stacks.v6.view);
+  renderStacks();
+  if (state.cur) {
+    state.cur = localize(state.cur);
+    renderDetail(state.cur);
+  }
+  if (state.me && state.cur && state.cur.ip === state.me.ip && !state.cur.domain) {
+    setStatus(L(
+      `已默认定位你自己（${state.me.city || state.me.countryName || "未知"}）。输入别的 IP，标题会切回「查询结果」。`,
+      `Showing you (${state.me.city || state.me.countryName || "unknown"}). Type another IP and the heading switches back to Result.`,
+    ));
+  }
+  paintPriv();
+  paintReach(state.reachModel, { cached: state.reachCached });
+  renderSites();
+  renderCidr();
+});
 setInterval(tickClocks, 1000);
 tickClocks();
 
@@ -1335,11 +1696,29 @@ $("#meBtn").addEventListener("click", () => {
   runQuery(state.me.ip);
   $("#detail").scrollIntoView({ behavior: "smooth", block: "start" });
 });
-$("#barMe").addEventListener("click", () => { if (state.me?.ip) copyText(state.me.ip, "已复制 IP"); });
-$("#myIp").addEventListener("click", () => { if (state.me?.ip) copyText(state.me.ip, "已复制 IP"); });
+$("#barMe").addEventListener("click", () => { if (state.me?.ip) copyText(state.me.ip, L("已复制 IP", "IP copied")); });
+for (const family of ["4", "6"]) {
+  $(`#stack${family}Ip`).addEventListener("click", () => {
+    const ip = stackSlot(family).view?.ip;
+    if (ip) copyText(ip, L("已复制 IP", "IP copied"));
+  });
+}
+$("#stackGo").addEventListener("click", () => { runStacks(); });
+$("#leakGo").addEventListener("click", () => { runLeak(); });
+$("#siteGo").addEventListener("click", () => { runSites(); });
+$("#siteAdd").addEventListener("click", () => { addCustomSite(); });
+$("#siteInput").addEventListener("keydown", (event) => {
+  if (event.key === "Enter") { event.preventDefault(); addCustomSite(); }
+});
 $("#mySum").addEventListener("click", () => {
-  if (!state.me) return;
-  copyText([`IP: ${state.me.ip}`, `位置: ${placeName(state.me)}`, `运营商: ${orgText(state.me) || "—"}`, `ASN: ${state.me.asn ? `AS${state.me.asn}` : "—"}`, `来源: ${state.me.edge ? "边缘直读" : state.me.sourceText}`].join("\n"), "已复制体检摘要");
+  if (!state.me && stacks.v4.phase !== "known" && stacks.v6.phase !== "known") return;
+  const lines = ["4", "6"].map((family) => {
+    const slot = stackSlot(family);
+    if (slot.phase !== "known" || !slot.view) return `IPv${family}: ${stackCopy(slot)}`;
+    const view = slot.view;
+    return `IPv${family}: ${view.ip} | ${placeName(view) || "—"} | ${view.asn ? `AS${view.asn}` : "AS?"} | ${orgText(view) || "—"}`;
+  });
+  copyText(lines.join("\n"), L("已复制体检摘要", "Summary copied"));
 });
 $("#mapMe").addEventListener("click", () => {
   if (state.me?.lat != null) { MapView.setTarget(state.me); toast("地图已定位到你的位置"); }

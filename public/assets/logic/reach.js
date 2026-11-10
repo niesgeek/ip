@@ -240,14 +240,19 @@ function sideState(protocol, side) {
   return protocol?.[side]?.state || "unknown";
 }
 
-export function summarizeReach({ icmp, tcp, port, icmpError = "" }) {
+export function summarizeReach({ icmp, tcp, port, icmpError = "", lang = "zh" }) {
+  const en = lang === "en";
+  const s = (zh, text) => (en ? text : zh);
   const label = `TCP ${port}`;
   if (!tcp) {
     return {
       id: "pending",
       tone: "muted",
-      title: "正在探测",
-      detail: "归属地已经出来了。国内外节点还在测这个端口，通常要几秒到十几秒。",
+      title: s("正在探测", "Checking"),
+      detail: s(
+        "归属地已经出来了。国内外节点还在测这个端口，通常要几秒到十几秒。",
+        "The location is in. Nodes in China and abroad are still testing this port. That usually takes a few seconds.",
+      ),
     };
   }
   const domestic = sideState(tcp, "domestic");
@@ -257,63 +262,90 @@ export function summarizeReach({ icmp, tcp, port, icmpError = "" }) {
     return {
       id: "unknown",
       tone: "muted",
-      title: `${label} 还判断不了`,
-      detail: "国内或国外返回的有效节点太少。标成离线的节点已经忽略。可以换一个端口，或过一会儿再测。",
+      title: s(`${label} 还判断不了`, `${label} is not enough to judge`),
+      detail: s(
+        "国内或国外返回的有效节点太少。标成离线的节点已经忽略。可以换一个端口，或过一会儿再测。",
+        "Too few live nodes came back from China or from abroad. Nodes marked offline are ignored. Try another port, or test again in a moment.",
+      ),
     };
   }
-  const icmpNote = icmpExtra(icmp, icmpError);
+  const icmpNote = icmpExtra(icmp, icmpError, en);
   if (overseas === "ok" && domestic === "fail") {
     return {
       id: "blocked",
       tone: "bad",
-      title: `${label} 很像在国内被封`,
-      detail: `国外连得上、国内连不上。按这个口径，这个端口在大陆被墙或被封。${icmpNote}可以改个端口再测：换了仍然是国内不通，才更像整段 IP 被封，而不是只封了这一个端口。`,
+      title: s(`${label} 很像在国内被封`, `${label} looks blocked in mainland China`),
+      detail: s(
+        `国外连得上、国内连不上。按这个口径，这个端口在大陆被墙或被封。${icmpNote}可以改个端口再测：换了仍然是国内不通，才更像整段 IP 被封，而不是只封了这一个端口。`,
+        `Abroad can connect and mainland China cannot. By this reading, the port is blocked in mainland China. ${icmpNote}Try another port: if mainland China still cannot connect, the whole address looks blocked, not just this port.`,
+      ),
     };
   }
   if (overseas === "ok" && domestic === "ok") {
     return {
       id: "clear",
       tone: "ok",
-      title: `${label} 国内外都通`,
-      detail: `国内和国外节点都能连上这个端口，不像被墙。${icmpNote}`,
+      title: s(`${label} 国内外都通`, `${label} is open in both places`),
+      detail: s(
+        `国内和国外节点都能连上这个端口，不像被墙。${icmpNote}`,
+        `Nodes in mainland China and abroad can both connect to this port. It does not look blocked. ${icmpNote}`,
+      ),
     };
   }
   if (overseas === "fail" && domestic === "fail") {
-    let detail = "两边都连不上这个端口。更像是机器没开机、端口没在监听、防火墙把探测丢掉了，或流量用尽，不一定是被墙。";
+    let detail = s(
+      "两边都连不上这个端口。更像是机器没开机、端口没在监听、防火墙把探测丢掉了，或流量用尽，不一定是被墙。",
+      "Neither side can connect to this port. That looks more like the machine is down, the port is closed, a firewall dropped the probe, or the quota ran out. It is not necessarily a block.",
+    );
     if (sideState(icmp, "domestic") === "ok" && sideState(icmp, "overseas") === "ok") {
-      detail = "两边 ping 都通，但这个端口两边都不通。多半是端口没开，或被防火墙丢掉了，不是整段地址被墙。";
+      detail = s(
+        "两边 ping 都通，但这个端口两边都不通。多半是端口没开，或被防火墙丢掉了，不是整段地址被墙。",
+        "Ping works on both sides, but this port is closed on both. The port is probably closed or firewalled, not the whole address blocked.",
+      );
     } else if (sideState(icmp, "overseas") === "ok" && sideState(icmp, "domestic") === "fail") {
-      detail = "这个端口国内外都不通，所以端口本身可能没开。另外国外 ping 通、国内 ping 不通，ICMP 这一层更像国内不可达。";
+      detail = s(
+        "这个端口国内外都不通，所以端口本身可能没开。另外国外 ping 通、国内 ping 不通，ICMP 这一层更像国内不可达。",
+        "This port is closed on both sides, so the port itself may be closed. Ping works abroad and fails in mainland China, so ICMP looks unreachable from China.",
+      );
     }
-    return { id: "down", tone: "warn", title: `${label} 国内外都连不上`, detail };
+    return { id: "down", tone: "warn", title: s(`${label} 国内外都连不上`, `${label} is closed on both sides`), detail };
   }
   if (overseas === "fail" && domestic === "ok") {
     return {
       id: "asymmetric",
       tone: "warn",
-      title: `${label} 不像被墙`,
-      detail: `国内能连上，国外反而不能。被墙通常是国内不通。这更像节点波动，或目标只对部分网络开放。${icmpNote}`,
+      title: s(`${label} 不像被墙`, `${label} does not look blocked`),
+      detail: s(
+        `国内能连上，国外反而不能。被墙通常是国内不通。这更像节点波动，或目标只对部分网络开放。${icmpNote}`,
+        `Mainland China can connect and abroad cannot. A block usually fails inside China. This looks more like node noise, or a target that is only open to some networks. ${icmpNote}`,
+      ),
     };
   }
   return {
     id: "mixed",
     tone: "warn",
-    title: `${label} 结果不一致`,
-    detail: `同一侧里有的节点通、有的不通，还不能说被墙。${icmpNote}可以再测一次，或换一个端口对照。`,
+    title: s(`${label} 结果不一致`, `${label} came back mixed`),
+    detail: s(
+      `同一侧里有的节点通、有的不通，还不能说被墙。${icmpNote}可以再测一次，或换一个端口对照。`,
+      `On the same side some nodes connect and some do not, so this is not enough to call it blocked. ${icmpNote}Run it again, or compare another port.`,
+    ),
   };
 }
 
-function icmpExtra(icmp, icmpError) {
-  if (!icmp && icmpError) return `ICMP 这次没测成（${icmpError}）。`;
+function icmpExtra(icmp, icmpError, en = false) {
+  const s = (zh, text) => (en ? text : zh);
+  if (!icmp && icmpError) return s(`ICMP 这次没测成（${icmpError}）。`, `ICMP did not complete this time (${icmpError}). `);
   if (!icmp) return "";
   const domestic = sideState(icmp, "domestic");
   const overseas = sideState(icmp, "overseas");
   if (domestic === "unknown" || overseas === "unknown") {
-    return icmpError ? `ICMP 样本不够（${icmpError}）。` : "ICMP 样本不够，没有放进结论。";
+    return icmpError
+      ? s(`ICMP 样本不够（${icmpError}）。`, `Not enough ICMP samples (${icmpError}). `)
+      : s("ICMP 样本不够，没有放进结论。", "Not enough ICMP samples, so they were left out of the conclusion. ");
   }
-  if (overseas === "ok" && domestic === "ok") return "ICMP 国内外也都通。";
-  if (overseas === "ok" && domestic === "fail") return "ICMP 是国外通、国内不通。";
-  if (overseas === "fail" && domestic === "fail") return "ICMP 国内外都不通，很多机器本来就会禁 ping。";
-  if (overseas === "fail" && domestic === "ok") return "ICMP 国内通、国外不通。";
-  return "ICMP 结果不一致。";
+  if (overseas === "ok" && domestic === "ok") return s("ICMP 国内外也都通。", "ICMP is open on both sides. ");
+  if (overseas === "ok" && domestic === "fail") return s("ICMP 是国外通、国内不通。", "ICMP works abroad and fails in mainland China. ");
+  if (overseas === "fail" && domestic === "fail") return s("ICMP 国内外都不通，很多机器本来就会禁 ping。", "ICMP fails on both sides. Many machines block ping. ");
+  if (overseas === "fail" && domestic === "ok") return s("ICMP 国内通、国外不通。", "ICMP works in mainland China and fails abroad. ");
+  return s("ICMP 结果不一致。", "ICMP came back mixed. ");
 }
