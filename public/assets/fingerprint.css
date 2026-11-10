@@ -101,16 +101,37 @@
 .fp-odds{font-weight:650}
 .fp-vnote{grid-column:1 / -1;padding:0 16px 12px}
 .fp-vnote summary{
-  cursor:pointer;font-weight:700;padding:12px 0 8px;list-style:none;
+  cursor:pointer;font-weight:700;padding:12px 0 10px;list-style:none;
+  display:flex;align-items:center;gap:8px 10px;flex-wrap:wrap;
 }
 .fp-vnote summary::-webkit-details-marker{display:none}
+.fp-vnote summary::marker{content:""}
+.fp-vnote summary:focus-visible{outline:3px solid var(--blue);outline-offset:2px;border-radius:8px}
+.fp-chevron{
+  width:9px;height:9px;flex:none;
+  border-right:2.5px solid var(--ink);
+  border-bottom:2.5px solid var(--ink);
+  transform:translateY(-2px) rotate(45deg);
+}
+.fp-vnote[open] .fp-chevron{transform:translateY(2px) rotate(225deg)}
+.fp-vnote-hint{
+  margin-left:auto;
+  display:inline-flex;align-items:center;
+  padding:4px 10px;
+  font-size:12.5px;font-weight:700;line-height:1.2;
+  background:var(--card);color:var(--ink);
+  border:var(--bd-sm) solid var(--ink);
+  border-radius:999px;
+  box-shadow:2px 2px 0 var(--ink);
+}
+.fp-vnote[open] .fp-hint-closed,.fp-vnote:not([open]) .fp-hint-open{display:none}
 .fp-vnote p{font-size:13.5px;line-height:1.7;color:var(--ink-70)}
 
 .fp-portrait{padding:14px 16px;display:flex;flex-direction:column;gap:8px;background:var(--sky-soft)}
 .fp-portrait-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .fp-portrait-actions{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
-.fp-portrait-txt{display:flex;flex-direction:column;gap:8px}
-.fp-portrait-txt p{font-size:14.5px;line-height:1.7}
+.fp-portrait-txt{display:flex;flex-direction:column;gap:12px}
+.fp-portrait-txt p{font-size:14.5px;line-height:1.75}
 .fp-portrait:not(.is-open) .fp-rest{display:none}
 .fp-stats{grid-template-columns:repeat(6,minmax(0,1fr))}
 
@@ -159,6 +180,7 @@
 .fp-diff{padding:12px 14px;background:var(--pink-soft);display:flex;flex-direction:column;gap:4px}
 .fp-diff p{font-size:14px;line-height:1.6}
 
+#fpList{display:flex;flex-direction:column;gap:22px}
 .fp-group{overflow:hidden}
 .fp-group-h{
   width:100%;
@@ -271,5 +293,6 @@
 @media (max-width:620px){
   .fp-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
   .fp-portrait-actions{margin-left:0}
+  .fp-vnote-hint{margin-left:0}
   .fp-panel,.fp-delta{margin-left:12px;padding-left:0}
 }

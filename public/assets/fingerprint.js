@@ -951,10 +951,11 @@ function renderPortrait(paragraphs) {
     text.append(p);
   });
   host.hidden = false;
-  host.classList.toggle("is-open", false);
+  host.classList.remove("is-open");
   const more = $("#fpPortraitMore");
   more.hidden = paragraphs.length < 2;
   more.setAttribute("aria-expanded", "false");
+  more.textContent = "展开全文";
 }
 
 function renderStats(summary) {
@@ -1241,7 +1242,7 @@ async function run() {
     state.changes = prior ? diffSignals(prior, signals) : [];
     if (!prior) state.changedOnly = false;
     const summary = summarize(signals);
-    const paragraphs = buildPortrait(signals, connection);
+    const paragraphs = buildPortrait(signals, connection, { id: digest, now: new Date() });
     renderPage(summary, paragraphs);
     const missing = missingSignalIds(signals);
     const tail = missing.length ? ` 有 ${missing.length} 项没有返回。` : "";

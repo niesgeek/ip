@@ -13,7 +13,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
 <link rel="stylesheet" href="/assets/app.css?v=4">
-<link rel="stylesheet" href="/assets/fingerprint.css?v=1">
+<link rel="stylesheet" href="/assets/fingerprint.css?v=2">
 </head>
 <body>
 <svg width="0" height="0" aria-hidden="true" style="position:absolute">
@@ -80,7 +80,14 @@
       <p class="fine">按各项权重在这台设备上加总。不是实测访客比例。</p>
     </div>
     <details class="fp-vnote">
-      <summary>这些数字怎么来的</summary>
+      <summary>
+        <i class="fp-chevron" aria-hidden="true"></i>
+        <span>这些数字怎么来的</span>
+        <span class="fp-vnote-hint">
+          <span class="fp-hint-closed">点击展开查看</span>
+          <span class="fp-hint-open">点击收起</span>
+        </span>
+      </summary>
       <p id="fpSummary">采样完成后，这里会写出取得、未提供、被拦住和易变各有多少。</p>
       <p class="fine">每一项有一个事先写好的权重。已取得的算全额，易变项算一半，未提供和被拦住的不算进信息量，但「浏览器没给」仍然会进入指纹 ID。各项其实常常一起出现，所以真实撞车会比这个估算更多。本站不保存访客，给不出实测比例。</p>
     </details>
@@ -88,14 +95,14 @@
 
   <section class="fp-portrait" id="fpPortrait" hidden aria-labelledby="fpPortraitLabel">
     <div class="fp-portrait-h">
-      <p class="fp-k" id="fpPortraitLabel">用读数写成的一段话</p>
+      <p class="fp-k" id="fpPortraitLabel">网站眼里的你</p>
       <div class="fp-portrait-actions">
         <button class="btn btn-ghost btn-sm" id="fpPortraitMore" type="button" hidden aria-expanded="false">展开全文</button>
         <button class="btn btn-ghost btn-sm" id="fpShare" type="button"><svg width="14" height="14" aria-hidden="true"><use href="#i-copy"/></svg>复制这段</button>
       </div>
     </div>
     <div class="fp-portrait-txt" id="fpPortraitText"></div>
-    <p class="fine">句子只使用上面已经拿到的值。没有读到的东西不会被写成事实。</p>
+    <p class="fine">这段只拿上面已经拿到的值来说。没读到的，不会被写成事实。</p>
   </section>
 
   <div class="stats fp-stats" id="fpStats"></div>
@@ -193,6 +200,6 @@
 </footer>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 <noscript><p class="fp-noscript">需要启用 JavaScript。采样在你的浏览器里进行，不会改到服务器上的数据。</p></noscript>
-<script type="module" src="/assets/fingerprint.js?v=1"></script>
+<script type="module" src="/assets/fingerprint.js?v=2"></script>
 </body>
 </html>
