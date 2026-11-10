@@ -41,7 +41,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
-<link rel="stylesheet" href="/assets/app.css?v=6">
+<link rel="stylesheet" href="/assets/app.css?v=7">
 </head>
 <body>
 <svg width="0" height="0" aria-hidden="true" style="position:absolute">
@@ -71,13 +71,13 @@
     <a href="#hero" data-en="Lookup">查询</a>
     <a href="#mapcard" data-en="Map">地图</a>
     <a href="#risk" data-en="Risk">风险</a>
-    <a href="/gfwblock" data-en="GFW check">被墙检测</a>
     <a href="#batch" data-en="Batch">批量</a>
     <a href="#cidr" data-en="CIDR">网段</a>
     <a href="#dev" data-en="CLI">终端</a>
-    <a href="#faq" data-en="FAQ">常见问题</a>
     <a href="#data" data-en="Notes">说明</a>
     <a href="/fingerprint" data-en="Fingerprint">指纹</a>
+    <a href="#faq" data-en="FAQ">常见问题</a>
+    <a href="/gfwblock" data-en="GFW check">被墙检测</a>
     <a href="/contact" data-en="Contact">联系</a>
   </nav>
   <a class="bar-fp bar-fp-mobile" href="/fingerprint" data-en="Fingerprint">指纹</a>
@@ -387,11 +387,11 @@
   <section class="cell cell-sites" id="sites">
     <div class="cell-head">
       <h2 class="h2"><svg width="18" height="18"><use href="#i-target"/></svg><span data-en="Sites this device can open">本机常用网站连通</span></h2>
-      <button class="mini site-refresh" id="siteGo" type="button" aria-label="刷新连通" data-en-aria="Refresh" title="刷新连通" data-en-title="Refresh">
-        <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.2-5.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><path d="M20 4v5h-5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </button>
+      <div class="cell-tools">
+        <button class="btn btn-ghost btn-sm" id="siteGo" type="button" data-en="Start test">开始测试</button>
+      </div>
     </div>
-    <p class="lede lede-sm" data-en-html="From this browser, can these sites be opened right now? Nothing is contacted until you press refresh. A tiny icon request stays in this page’s memory and is not uploaded. This is not the <a class=&quot;foot-link&quot; href=&quot;/gfwblock&quot;>GFW check</a>.">从你这台设备的浏览器看，这些网站现在打不打得开。点右上角才会去请求一个小图标，结果留在这一页的内存里，不上传。这不是<a class="foot-link" href="/gfwblock">被墙检测</a>。</p>
+    <p class="lede lede-sm" data-en-html="From this device’s browser, can these sites open now? Click the top right to request a tiny icon. Results stay in this page’s memory, not uploaded. Not the <a class=&quot;foot-link&quot; href=&quot;/gfwblock&quot;>GFW check</a>.">从你这台设备的浏览器看，这些网站现在打不打得开。点右上角才会去请求一个小图标，结果留在这一页的内存里，不上传。这不是<a class="foot-link" href="/gfwblock">被墙检测</a>。</p>
     <div class="site-grid" id="siteList"></div>
     <p class="fine" data-en="Some sites refuse this kind of probe, so a failure is not proof the site is down. Timings are only for comparing cards on this page. Custom names stay in this page’s memory, up to four, and are gone on refresh.">有的网站会拒绝这种探测，失败不等于网站挂了。时间只适合在这一页里互相比较。自定义域名只留在这一页的内存里，最多四个，刷新就没了。</p>
   </section>
@@ -476,13 +476,13 @@
     <span class="foot-sep">/</span>
     <span>结果可分享</span>
     <span class="foot-sep">/</span>
-    <a class="foot-link" href="/gfwblock" data-en="GFW check">被墙检测</a>
+    <a class="foot-link" href="#dev" data-en="CLI">终端接口</a>
     <span class="foot-sep">/</span>
     <a class="foot-link" href="/fingerprint" data-en="Fingerprint">指纹</a>
     <span class="foot-sep">/</span>
-    <a class="foot-link" href="/contact" data-en="Contact">联系</a>
+    <a class="foot-link" href="/gfwblock" data-en="GFW check">被墙检测</a>
     <span class="foot-sep">/</span>
-    <a class="foot-link" href="#dev" data-en="CLI">终端接口</a>
+    <a class="foot-link" href="/contact" data-en="Contact">联系</a>
   </div>
 </footer>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
